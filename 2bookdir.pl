@@ -14,14 +14,15 @@ use Symbol qw(gensym);
 
 my $help = 0;
 my $json_output = 0;
-GetOptions('help|h' => \$help, 'json' => \$json_output) or usage(1);
+my $as_is = 0;
+GetOptions('help|h' => \$help, 'json' => \$json_output, 'as-is' => \$as_is) or usage(1);
 
 usage(0) if $help;
 usage(1) if @ARGV < 1;
 
 my ($summary_title, $summary_volume, $summary_year);
 my $ok = eval {
-    my ($book_file, $part_number, $book_title) = parse_args(@ARGV);
+    my ($book_file, $part_number, $book_title) = parse_args($as_is, @ARGV);
     my $is_dir_source = -d $book_file;
     my @audio_files = find_audio_files($book_file);
     my $audio_count = scalar @audio_files;
@@ -364,6 +365,8 @@ sub tone_set_audio_metadata {
             push @tag_cmd, '--meta-movement', $part_number;
         } else {
             push @tag_cmd, '--meta-part', $part_number;
+            my $whole_number = movement_from_part_number($part_number);
+            push @tag_cmd, '--meta-movement', $whole_number if defined $whole_number;
         }
     } elsif (defined $part_number && is_publishing_year($part_number)) {
         push @tag_cmd, "--meta-publishing-date=$part_number-01-01";
@@ -375,6 +378,7 @@ sub tone_set_audio_metadata {
     if ($tag_output =~ /\b(error|failed|panic|exception)\b/) {
         die "Error: tone tag failed for '$path': $tag_out$tag_err";
     }
+    tone_postprocess($path);
 
     my ($dump_exit, $dump_out, $dump_err) = run_external_cmd(
         'tone', 'dump', $path, '--format', 'json', '--query', '$.meta.album'
@@ -419,10 +423,35 @@ sub tone_set_audio_metadata {
                     die "Error: tone part mismatch for '$path': expected '$part_number', got '$part_out'";
                 }
             }
+
+            my $whole_number = movement_from_part_number($part_number);
+            if (defined $whole_number) {
+                my ($mv_exit, $mv_out, $mv_err) = run_external_cmd(
+                    'tone', 'dump', $path, '--format', 'json', '--query', '$.meta.movement'
+                );
+                my $mv_combined = lc("$mv_out\n$mv_err");
+                if ($mv_combined =~ /\b(error|failed|panic|exception)\b/) {
+                    die "Error: tone movement verification failed for '$path': $mv_out$mv_err";
+                }
+                if ($mv_out !~ /\Q$whole_number\E/) {
+                    die "Error: tone movement mismatch for '$path': expected '$whole_number', got '$mv_out'";
+                }
+            }
         }
     } elsif (defined $part_number && is_publishing_year($part_number)) {
         verify_tone_publishing_date($path, $part_number);
     }
+}
+
+sub movement_from_part_number {
+    my ($part_number) = @_;
+    return undef if !defined $part_number || $part_number eq '';
+
+    if ($part_number =~ /^(\d+)(?:\..+)?$/) {
+        return int($1);
+    }
+
+    return undef;
 }
 
 sub tone_set_publishing_date {
@@ -436,8 +465,26 @@ sub tone_set_publishing_date {
     if ($tag_output =~ /\b(error|failed|panic|exception)\b/) {
         die "Error: tone publishing-date tag failed for '$path': $tag_out$tag_err";
     }
+    tone_postprocess($path);
 
     verify_tone_publishing_date($path, $year);
+}
+
+sub tone_postprocess {
+    my ($path) = @_;
+
+    my ($post_exit, $post_out, $post_err) = run_external_cmd(
+        'tone',
+        'tag',
+        '--taggers=remove,m4bfillup',
+        '--meta-remove-property=sortalbum',
+        '--meta-remove-property=sorttitle',
+        $path,
+    );
+    my $post_output = lc("$post_out\n$post_err");
+    if ($post_output =~ /\b(error|failed|panic|exception)\b/) {
+        die "Error: tone postprocess failed for '$path': $post_out$post_err";
+    }
 }
 
 sub verify_tone_publishing_date {
@@ -505,7 +552,7 @@ sub usage {
     my ($exit_code) = @_;
 
     print <<'USAGE';
-Usage: 2bookdir.pl [--help] [--json] book_file [part-number] [book title]
+Usage: 2bookdir.pl [--help] [--json] [--as-is] book_file [part-number] [book title]
 
 Arguments:
   book_file     Required. Path to the source book file or directory.
@@ -534,7 +581,7 @@ USAGE
 }
 
 sub parse_args {
-    my (@args) = @_;
+    my ($as_is_mode, @args) = @_;
 
     my ($file, @rest);
     if (-e $args[0]) {
@@ -567,6 +614,20 @@ sub parse_args {
             $source_name =~ s/\.[^.]+\z//;
         }
         if ($source_name =~ /^\s*(\d+(?:\.\d+)*)\s*-\s*(.+?)\s*$/) {
+            $part = normalize_inferred_part_number($1);
+            $title = $2;
+        } elsif (
+            !$as_is_mode
+            && $source_name =~ /^\s*(\d+)\.\s+(.+?)\s*$/
+        ) {
+            # Inference mode for names like "101. Title".
+            $part = normalize_inferred_part_number($1);
+            $title = $2;
+        } elsif (
+            !$as_is_mode
+            && $source_name =~ /^\s*(\d+(?:\.\d+)*)\s+(.+?)\s*$/
+        ) {
+            # New inference mode for names like "02 Title" when no separator is present.
             $part = normalize_inferred_part_number($1);
             $title = $2;
         }

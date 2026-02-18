@@ -6,7 +6,7 @@ directory and moves a book file into it.
 ## Usage
 
 ```bash
-2bookdir.pl [--help] [--json] book_file [part-number] [book title]
+2bookdir.pl [--help] [--json] [--as-is] book_file [part-number] [book title]
 ```
 
 ### Arguments
@@ -14,6 +14,8 @@ directory and moves a book file into it.
 - `book_file` (required): Path to the source book file or directory.
 - `--json` (optional): Output a JSON object with `response` (`success` or
   `failure`) and `meta` (`title`, `volume`, `year`).
+- `--as-is` (optional): Disable no-separator source-name inference
+  (for example, `02 Title.mp3`).
 - `part-number` (optional): Positive numeric value (for example: `2` or
   `2.1`). If provided, directory name is prefixed as `Vol. N - ...`.
   If `part-number` is a 4-digit year, it is treated as PublishingDate and
@@ -37,9 +39,16 @@ In that single-audio case, the file's album metadata is also updated to
 `book title` via `tone`. The volume number is also written via `tone` as:
 - `movement` when the volume number is an integer (for example `3`)
 - `part` when the volume number is non-integer (for example `2.1`)
+  and in non-integer cases `movement` is also set to the whole-number prefix
+  (for example `2.1` -> `movement=2`)
 PublishingDate years write `--meta-publishing-date=YYYY-01-01` instead of
 `movement`/`part`.
 If more than one such audio file is found, filenames are not renamed.
+
+When `part-number` is omitted, `book_file` names beginning with a number are
+inferred as volume/title sources:
+- `02 - Dog God.mp3` -> volume `2`, title `Dog God`
+- `02 Fruppy Goop.mp3` -> volume `2`, title `Fruppy Goop` (unless `--as-is`)
 For example, `2bookdir.pl "Frog God.m4b" 3 "My Dog"` produces:
 `Vol. 3 - My Dog/My Dog.m4b`.
 

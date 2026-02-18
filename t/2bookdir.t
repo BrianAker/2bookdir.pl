@@ -22,7 +22,7 @@ ok(defined $fixture_m4b && -f $fixture_m4b, 'fixture m4b exists');
 
 my ($exit_help, $out_help, $err_help) = run_cmd('perl', $script, '--help');
 is($exit_help, 0, '--help exits successfully');
-like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--json\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
+like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--json\] \[--as-is\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
 is($err_help, '', 'help does not write stderr');
 
 my ($exit_missing, $out_missing, $err_missing) = run_cmd('perl', $script, 'no-such-file.epub');
@@ -49,6 +49,18 @@ is($success_json->{response}, 'success', 'json success reports success response'
 is($success_json->{meta}->{title}, 'Json Dog', 'json success includes title in meta');
 is($success_json->{meta}->{volume}, '3', 'json success includes volume in meta');
 ok(!defined $success_json->{meta}->{year}, 'json success leaves year undefined when not present');
+
+copy_single_audio_fixture('mp3', '02 As Is.mp3');
+my ($exit_as_is, $out_as_is, $err_as_is) = run_cmd('perl', $script, '--as-is', '02 As Is.mp3');
+is($exit_as_is, 0, 'as-is mode disables no-separator volume inference');
+ok(-d '02 As Is', 'as-is mode keeps original file-derived directory name');
+ok(-f File::Spec->catfile('02 As Is', '02 As Is.mp3'), 'as-is mode keeps original filename');
+
+copy_single_audio_fixture('mp3', '101 Cats.mp3');
+my ($exit_as_is_101, $out_as_is_101, $err_as_is_101) = run_cmd('perl', $script, '--as-is', '101 Cats.mp3');
+is($exit_as_is_101, 0, 'as-is mode disables numeric-prefix volume inference');
+ok(-d '101 Cats', 'as-is mode keeps directory without inferred volume for numeric prefix');
+ok(-f File::Spec->catfile('101 Cats', '101 Cats.mp3'), 'as-is mode keeps numeric-prefix filename unchanged');
 
 write_file('book.epub', 'dummy');
 my ($exit_move, $out_move, $err_move) = run_cmd('perl', $script, 'book.epub');
@@ -110,6 +122,7 @@ ok(-d 'Vol. 2.1 - My Part', 'volume directory for decimal title case is created'
 ok(-f File::Spec->catfile('Vol. 2.1 - My Part', 'My Part.m4b'), 'decimal title case file is renamed to title');
 is(tone_album(File::Spec->catfile('Vol. 2.1 - My Part', 'My Part.m4b')), 'My Part', 'decimal title case album metadata is updated to title');
 is(tone_part(File::Spec->catfile('Vol. 2.1 - My Part', 'My Part.m4b')), '2.1', 'non-integer volume number is written to part metadata');
+is(tone_meta(File::Spec->catfile('Vol. 2.1 - My Part', 'My Part.m4b'), '$.meta.movement'), '2', 'non-integer volume also writes movement using whole number');
 is($err_spaced_title_decimal, '', 'decimal title case does not write stderr');
 like($out_spaced_title_decimal, qr/^Moved: Frog God\.m4b -> Vol\. 2\.1 - My Part\/My Part\.m4b$/m, 'decimal title case output includes destination');
 
@@ -130,6 +143,40 @@ ok(-f File::Spec->catfile('1999 - Pigs', 'Pigs.mp3'), 'audio file moved under pu
 like(tone_dump_json(File::Spec->catfile('1999 - Pigs', 'Pigs.mp3')), qr/"publishingDate"\s*:\s*"1999-01-01/, 'publishing-date metadata is set to YYYY-01-01');
 is($err_year_prefix, '', 'publishing-date move does not write stderr');
 like($out_year_prefix, qr/^Moved: Pigs\.mp3 -> 1999 - Pigs\/Pigs\.mp3$/m, 'publishing-date move output includes destination');
+
+copy_single_audio_fixture('mp3', '02 Fruppy Goop.mp3');
+my ($exit_inferred_no_separator, $out_inferred_no_separator, $err_inferred_no_separator) = run_cmd('perl', $script, '02 Fruppy Goop.mp3');
+is($exit_inferred_no_separator, 0, 'inferred part/title from source file name without separator succeeds');
+ok(-d 'Vol. 2 - Fruppy Goop', 'inferred no-separator volume directory is created');
+ok(-f File::Spec->catfile('Vol. 2 - Fruppy Goop', 'Fruppy Goop.mp3'), 'single audio file is renamed using inferred title');
+is($err_inferred_no_separator, '', 'inferred no-separator move does not write stderr');
+like($out_inferred_no_separator, qr/^Moved: 02 Fruppy Goop\.mp3 -> Vol\. 2 - Fruppy Goop\/Fruppy Goop\.mp3$/m, 'inferred no-separator output includes destination');
+
+copy_single_audio_fixture('mp3', '101 Cats.mp3');
+my ($exit_inferred_numeric_prefix, $out_inferred_numeric_prefix, $err_inferred_numeric_prefix) = run_cmd('perl', $script, '101 Cats.mp3');
+is($exit_inferred_numeric_prefix, 0, 'inferred part/title from numeric-prefix source file name succeeds');
+ok(-d 'Vol. 101 - Cats', 'inferred numeric-prefix volume directory is created');
+ok(-f File::Spec->catfile('Vol. 101 - Cats', 'Cats.mp3'), 'single audio file is renamed using inferred numeric-prefix title');
+is($err_inferred_numeric_prefix, '', 'inferred numeric-prefix move does not write stderr');
+like($out_inferred_numeric_prefix, qr/^Moved: 101 Cats\.mp3 -> Vol\. 101 - Cats\/Cats\.mp3$/m, 'inferred numeric-prefix output includes destination');
+
+copy_single_audio_fixture('m4b', '101.1 Cats.m4b');
+my ($exit_inferred_decimal_numeric_prefix, $out_inferred_decimal_numeric_prefix, $err_inferred_decimal_numeric_prefix) = run_cmd('perl', $script, '101.1 Cats.m4b');
+is($exit_inferred_decimal_numeric_prefix, 0, 'inferred decimal numeric-prefix source file name succeeds');
+ok(-d 'Vol. 101.1 - Cats', 'inferred decimal numeric-prefix volume directory is created');
+ok(-f File::Spec->catfile('Vol. 101.1 - Cats', 'Cats.m4b'), 'single audio file is renamed using inferred decimal numeric-prefix title');
+is(tone_part(File::Spec->catfile('Vol. 101.1 - Cats', 'Cats.m4b')), '101.1', 'inferred decimal numeric-prefix writes part metadata');
+is(tone_meta(File::Spec->catfile('Vol. 101.1 - Cats', 'Cats.m4b'), '$.meta.movement'), '101', 'inferred decimal numeric-prefix writes movement using whole-number prefix');
+is($err_inferred_decimal_numeric_prefix, '', 'inferred decimal numeric-prefix move does not write stderr');
+like($out_inferred_decimal_numeric_prefix, qr/^Moved: 101\.1 Cats\.m4b -> Vol\. 101\.1 - Cats\/Cats\.m4b$/m, 'inferred decimal numeric-prefix output includes destination');
+
+copy_single_audio_fixture('mp3', '101. Gumby Goop.mp3');
+my ($exit_inferred_dot_prefix, $out_inferred_dot_prefix, $err_inferred_dot_prefix) = run_cmd('perl', $script, '101. Gumby Goop.mp3');
+is($exit_inferred_dot_prefix, 0, 'inferred part/title from source file name with dot separator succeeds');
+ok(-d 'Vol. 101 - Gumby Goop', 'inferred dot-separator volume directory is created');
+ok(-f File::Spec->catfile('Vol. 101 - Gumby Goop', 'Gumby Goop.mp3'), 'single audio file is renamed using inferred dot-separator title');
+is($err_inferred_dot_prefix, '', 'inferred dot-separator move does not write stderr');
+like($out_inferred_dot_prefix, qr/^Moved: 101\. Gumby Goop\.mp3 -> Vol\. 101 - Gumby Goop\/Gumby Goop\.mp3$/m, 'inferred dot-separator output includes destination');
 like($out_year_prefix, qr/^Title: Pigs$/m, 'publishing-date output includes title summary line');
 like($out_year_prefix, qr/^Year: 1999$/m, 'publishing-date output includes year summary line');
 
@@ -317,9 +364,9 @@ sub tone_meta {
 
 sub tone_part {
     my ($path) = @_;
-    my $part = tone_meta($path, '$.meta.part');
+    my $part = tone_meta($path, '$.meta.additionalFields.part');
     return $part if $part ne '';
-    return tone_meta($path, '$.meta.additionalFields.part');
+    return tone_meta($path, '$.meta.part');
 }
 
 sub tone_dump_json {
