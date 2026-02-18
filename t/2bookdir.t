@@ -4,6 +4,7 @@ use warnings;
 use Cwd qw(abs_path getcwd);
 use File::Basename qw(basename);
 use File::Copy qw(copy);
+use File::Path qw(remove_tree);
 use File::Spec;
 use File::Temp qw(tempdir);
 use FindBin;
@@ -169,6 +170,46 @@ is(tone_part(File::Spec->catfile('Vol. 101.1 - Cats', 'Cats.m4b')), '101.1', 'in
 is(tone_meta(File::Spec->catfile('Vol. 101.1 - Cats', 'Cats.m4b'), '$.meta.movement'), '101', 'inferred decimal numeric-prefix writes movement using whole-number prefix');
 is($err_inferred_decimal_numeric_prefix, '', 'inferred decimal numeric-prefix move does not write stderr');
 like($out_inferred_decimal_numeric_prefix, qr/^Moved: 101\.1 Cats\.m4b -> Vol\. 101\.1 - Cats\/Cats\.m4b$/m, 'inferred decimal numeric-prefix output includes destination');
+
+copy_single_audio_fixture('mp3', '2 - My - Dog.mp3');
+my ($exit_dash_three_parts, $out_dash_three_parts, $err_dash_three_parts) = run_cmd('perl', $script, '2 - My - Dog.mp3');
+is($exit_dash_three_parts, 0, 'dashed names with more than two segments do not infer volume');
+ok(-d '2 - My - Dog', 'three-part dashed name keeps original directory title');
+ok(-f File::Spec->catfile('2 - My - Dog', '2 - My - Dog.mp3'), 'three-part dashed name keeps original filename');
+is($err_dash_three_parts, '', 'three-part dashed name writes no stderr');
+like($out_dash_three_parts, qr/^Moved: 2 - My - Dog\.mp3 -> 2 - My - Dog\/2 - My - Dog\.mp3$/m, 'three-part dashed output keeps as-is move destination');
+
+copy_single_audio_fixture('mp3', 'My Dog Volume 3.mp3');
+my ($exit_suffix_volume, $out_suffix_volume, $err_suffix_volume) = run_cmd('perl', $script, 'My Dog Volume 3.mp3');
+is($exit_suffix_volume, 0, 'suffix pattern "Volume N" infers volume and title');
+ok(-d 'Vol. 3 - My Dog Volume 3', 'suffix "Volume N" creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 3 - My Dog Volume 3', 'My Dog Volume 3.mp3'), 'suffix "Volume N" keeps full title text');
+is($err_suffix_volume, '', 'suffix "Volume N" writes no stderr');
+like($out_suffix_volume, qr/^Moved: My Dog Volume 3\.mp3 -> Vol\. 3 - My Dog Volume 3\/My Dog Volume 3\.mp3$/m, 'suffix "Volume N" output includes destination');
+
+copy_single_audio_fixture('mp3', 'My Dog Vol 3.mp3');
+my ($exit_suffix_vol, $out_suffix_vol, $err_suffix_vol) = run_cmd('perl', $script, 'My Dog Vol 3.mp3');
+is($exit_suffix_vol, 0, 'suffix pattern "Vol N" infers volume and title');
+ok(-d 'Vol. 3 - My Dog Vol 3', 'suffix "Vol N" creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 3 - My Dog Vol 3', 'My Dog Vol 3.mp3'), 'suffix "Vol N" keeps full title text');
+is($err_suffix_vol, '', 'suffix "Vol N" writes no stderr');
+like($out_suffix_vol, qr/^Moved: My Dog Vol 3\.mp3 -> Vol\. 3 - My Dog Vol 3\/My Dog Vol 3\.mp3$/m, 'suffix "Vol N" output includes destination');
+
+copy_single_audio_fixture('mp3', 'My Dog Book 3.mp3');
+my ($exit_suffix_book, $out_suffix_book, $err_suffix_book) = run_cmd('perl', $script, 'My Dog Book 3.mp3');
+is($exit_suffix_book, 0, 'suffix pattern "Book N" infers volume and title');
+ok(-d 'Vol. 3 - My Dog Book 3', 'suffix "Book N" creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 3 - My Dog Book 3', 'My Dog Book 3.mp3'), 'suffix "Book N" keeps full title text');
+is($err_suffix_book, '', 'suffix "Book N" writes no stderr');
+like($out_suffix_book, qr/^Moved: My Dog Book 3\.mp3 -> Vol\. 3 - My Dog Book 3\/My Dog Book 3\.mp3$/m, 'suffix "Book N" output includes destination');
+
+copy_single_audio_fixture('mp3', 'My Dog 3.mp3');
+my ($exit_suffix_plain, $out_suffix_plain, $err_suffix_plain) = run_cmd('perl', $script, 'My Dog 3.mp3');
+is($exit_suffix_plain, 0, 'suffix pattern trailing number infers volume and title');
+ok(-d 'Vol. 3 - My Dog 3', 'suffix trailing number creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 3 - My Dog 3', 'My Dog 3.mp3'), 'suffix trailing number keeps full title text');
+is($err_suffix_plain, '', 'suffix trailing number writes no stderr');
+like($out_suffix_plain, qr/^Moved: My Dog 3\.mp3 -> Vol\. 3 - My Dog 3\/My Dog 3\.mp3$/m, 'suffix trailing number output includes destination');
 
 copy_single_audio_fixture('mp3', '101. Gumby Goop.mp3');
 my ($exit_inferred_dot_prefix, $out_inferred_dot_prefix, $err_inferred_dot_prefix) = run_cmd('perl', $script, '101. Gumby Goop.mp3');

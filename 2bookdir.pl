@@ -613,9 +613,15 @@ sub parse_args {
         if (-f $file) {
             $source_name =~ s/\.[^.]+\z//;
         }
-        if ($source_name =~ /^\s*(\d+(?:\.\d+)*)\s*-\s*(.+?)\s*$/) {
-            $part = normalize_inferred_part_number($1);
-            $title = $2;
+        my @dash_split = split /\s-\s/, $source_name;
+
+        # Dashed inference currently supports only two segments.
+        if (@dash_split == 2 && $dash_split[0] =~ /^\d+(?:\.\d+)*$/) {
+            $part = normalize_inferred_part_number($dash_split[0]);
+            $title = $dash_split[1];
+        } elsif (@dash_split > 2) {
+            # Do not attempt other inference modes when dashed syntax has
+            # more than two segments.
         } elsif (
             !$as_is_mode
             && $source_name =~ /^\s*(\d+)\.\s+(.+?)\s*$/
@@ -630,6 +636,30 @@ sub parse_args {
             # New inference mode for names like "02 Title" when no separator is present.
             $part = normalize_inferred_part_number($1);
             $title = $2;
+        } elsif (
+            !$as_is_mode
+            && $source_name =~ /^\s*(.+?)\s+Volume\s+(\d+)\s*$/i
+        ) {
+            $part = normalize_inferred_part_number($2);
+            $title = $source_name;
+        } elsif (
+            !$as_is_mode
+            && $source_name =~ /^\s*(.+?)\s+Vol\s+(\d+)\s*$/i
+        ) {
+            $part = normalize_inferred_part_number($2);
+            $title = $source_name;
+        } elsif (
+            !$as_is_mode
+            && $source_name =~ /^\s*(.+?)\s+Book\s+(\d+)\s*$/i
+        ) {
+            $part = normalize_inferred_part_number($2);
+            $title = $source_name;
+        } elsif (
+            !$as_is_mode
+            && $source_name =~ /^\s*(.+?)\s+(\d+)\s*$/
+        ) {
+            $part = normalize_inferred_part_number($2);
+            $title = $source_name;
         }
     }
 
