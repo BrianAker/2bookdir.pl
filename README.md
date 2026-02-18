@@ -6,12 +6,14 @@ directory and moves a book file into it.
 ## Usage
 
 ```bash
-2bookdir.pl [--help] book_file [part-number] [book title]
+2bookdir.pl [--help] [--json] book_file [part-number] [book title]
 ```
 
 ### Arguments
 
 - `book_file` (required): Path to the source book file or directory.
+- `--json` (optional): Output a JSON object with `response` (`success` or
+  `failure`) and `meta` (`title`, `volume`, `year`).
 - `part-number` (optional): Positive numeric value (for example: `2` or
   `2.1`). If provided, directory name is prefixed as `Vol. N - ...`.
   If `part-number` is a 4-digit year, it is treated as PublishingDate and

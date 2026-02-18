@@ -9,77 +9,117 @@ use File::Path qw(make_path);
 use File::Spec;
 use Getopt::Long qw(GetOptions);
 use IPC::Open3 qw(open3);
+use JSON::PP qw(encode_json);
 use Symbol qw(gensym);
 
 my $help = 0;
-GetOptions('help|h' => \$help) or usage(1);
+my $json_output = 0;
+GetOptions('help|h' => \$help, 'json' => \$json_output) or usage(1);
 
 usage(0) if $help;
 usage(1) if @ARGV < 1;
 
-my ($book_file, $part_number, $book_title) = parse_args(@ARGV);
-my $is_dir_source = -d $book_file;
-my @audio_files = find_audio_files($book_file);
-my $audio_count = scalar @audio_files;
+my ($summary_title, $summary_volume, $summary_year);
+my $ok = eval {
+    my ($book_file, $part_number, $book_title) = parse_args(@ARGV);
+    my $is_dir_source = -d $book_file;
+    my @audio_files = find_audio_files($book_file);
+    my $audio_count = scalar @audio_files;
+    my $resolved_title = resolve_title($book_file, $book_title);
+    my ($resolved_volume, $resolved_year) = resolve_volume_or_year($part_number);
+    $summary_title = $resolved_title;
+    $summary_volume = $resolved_volume;
+    $summary_year = $resolved_year;
 
-if (!-e $book_file) {
-    die "Error: book_file '$book_file' does not exist.\n";
-}
-if (!-f $book_file && !-d $book_file) {
-    die "Error: '$book_file' is not a regular file or directory.\n";
-}
-
-my $dir_name = build_dir_name($book_file, $part_number, $book_title);
-
-if ($is_dir_source) {
-    my $dest_dir = build_dir_target_path($book_file, $dir_name);
-    if (-e $dest_dir) {
-        die "Error: destination '$dest_dir' already exists.\n";
+    if (!-e $book_file) {
+        die "Error: book_file '$book_file' does not exist.\n";
+    }
+    if (!-f $book_file && !-d $book_file) {
+        die "Error: '$book_file' is not a regular file or directory.\n";
     }
 
-    move($book_file, $dest_dir)
-      or die "Error: failed to move '$book_file' to '$dest_dir': $!\n";
+    my $dir_name = build_dir_name($book_file, $part_number, $book_title);
 
-    maybe_rename_single_audio(
-        source_root => $book_file,
-        dest_root   => $dest_dir,
-        title       => $book_title,
-        part_number => $part_number,
-        audio_files => \@audio_files,
+    if ($is_dir_source) {
+        my $dest_dir = build_dir_target_path($book_file, $dir_name);
+        if (-e $dest_dir) {
+            die "Error: destination '$dest_dir' already exists.\n";
+        }
+
+        move($book_file, $dest_dir)
+          or die "Error: failed to move '$book_file' to '$dest_dir': $!\n";
+
+        maybe_rename_single_audio(
+            source_root => $book_file,
+            dest_root   => $dest_dir,
+            title       => $book_title,
+            part_number => $part_number,
+            audio_files => \@audio_files,
+        );
+        maybe_create_cover_image($dest_dir);
+
+        emit_success(
+            json_output => $json_output,
+            moved_from  => $book_file,
+            moved_to    => $dest_dir,
+            title       => $resolved_title,
+            volume      => $resolved_volume,
+            year        => $resolved_year,
+        );
+        return 1;
+    }
+
+    if (-e $dir_name && !-d $dir_name) {
+        die "Error: '$dir_name' exists and is not a directory.\n";
+    }
+    if (!-d $dir_name) {
+        make_path($dir_name) or die "Error: failed to create directory '$dir_name': $!\n";
+    }
+
+    my $dest_file = "$dir_name/" . build_dest_name($book_file, $book_title, $audio_count);
+    if (-e $dest_file) {
+        die "Error: destination file '$dest_file' already exists.\n";
+    }
+
+    move($book_file, $dest_file)
+      or die "Error: failed to move '$book_file' to '$dest_file': $!\n";
+
+    if ($audio_count == 1 && defined $book_title && length $book_title) {
+        tone_set_audio_metadata(
+            path        => $dest_file,
+            album       => album_name_from_path($dest_file),
+            part_number => $part_number,
+        );
+    } elsif ($audio_count == 1 && is_publishing_year($part_number)) {
+        tone_set_publishing_date($dest_file, $part_number);
+    }
+
+    emit_success(
+        json_output => $json_output,
+        created_dir => $dir_name,
+        moved_from  => $book_file,
+        moved_to    => $dest_file,
+        title       => $resolved_title,
+        volume      => $resolved_volume,
+        year        => $resolved_year,
     );
-    maybe_create_cover_image($dest_dir);
+    return 1;
+};
 
-    print "Moved: $book_file -> $dest_dir\n";
-    exit 0;
-}
-
-if (-e $dir_name && !-d $dir_name) {
-    die "Error: '$dir_name' exists and is not a directory.\n";
-}
-if (!-d $dir_name) {
-    make_path($dir_name) or die "Error: failed to create directory '$dir_name': $!\n";
-}
-
-my $dest_file = "$dir_name/" . build_dest_name($book_file, $book_title, $audio_count);
-if (-e $dest_file) {
-    die "Error: destination file '$dest_file' already exists.\n";
-}
-
-move($book_file, $dest_file)
-  or die "Error: failed to move '$book_file' to '$dest_file': $!\n";
-
-if ($audio_count == 1 && defined $book_title && length $book_title) {
-    tone_set_audio_metadata(
-        path        => $dest_file,
-        album       => album_name_from_path($dest_file),
-        part_number => $part_number,
+if (!$ok) {
+    my $error = $@ || "Error: unknown failure.\n";
+    chomp $error;
+    emit_failure(
+        json_output => $json_output,
+        error       => $error,
+        title       => $summary_title,
+        volume      => $summary_volume,
+        year        => $summary_year,
     );
-} elsif ($audio_count == 1 && is_publishing_year($part_number)) {
-    tone_set_publishing_date($dest_file, $part_number);
+    exit 1;
 }
 
-print "Created/used directory: $dir_name\n";
-print "Moved: $book_file -> $dest_file\n";
+exit 0;
 
 sub build_dir_name {
     my ($file, $part, $title) = @_;
@@ -88,7 +128,10 @@ sub build_dir_name {
       ? $title
       : basename($file);
 
-    $resolved_title =~ s/\.[^.]+$//;
+    # Strip extension only for file sources; directory names may contain dots.
+    if (-f $file) {
+        $resolved_title =~ s/\.[^.]+$//;
+    }
     $resolved_title =~ s/^\s+|\s+$//g;
     $resolved_title =~ s/\s+/ /g;
 
@@ -100,6 +143,79 @@ sub build_dir_name {
     }
 
     return sanitize($resolved_title);
+}
+
+sub resolve_title {
+    my ($file, $title) = @_;
+
+    my $resolved = defined $title && length $title
+      ? $title
+      : basename($file);
+
+    if (-f $file) {
+        $resolved =~ s/\.[^.]+$//;
+    }
+    $resolved =~ s/^\s+|\s+$//g;
+    $resolved =~ s/\s+/ /g;
+    return sanitize($resolved);
+}
+
+sub resolve_volume_or_year {
+    my ($part) = @_;
+    return (undef, undef) if !defined $part || $part eq '';
+
+    if (is_publishing_year($part)) {
+        return (undef, $part);
+    }
+
+    return ($part, undef);
+}
+
+sub print_summary {
+    my ($title, $volume, $year) = @_;
+
+    print "Title: $title\n";
+    print "Volume: $volume\n" if defined $volume && $volume ne '';
+    print "Year: $year\n" if defined $year && $year ne '';
+}
+
+sub emit_success {
+    my (%args) = @_;
+    if ($args{json_output}) {
+        print encode_json({
+            response => 'success',
+            meta => {
+                title  => $args{title},
+                volume => $args{volume},
+                year   => $args{year},
+            },
+        }) . "\n";
+        return;
+    }
+
+    print "Created/used directory: $args{created_dir}\n" if defined $args{created_dir};
+    print "Moved: $args{moved_from} -> $args{moved_to}\n";
+    print_summary($args{title}, $args{volume}, $args{year});
+}
+
+sub emit_failure {
+    my (%args) = @_;
+    if ($args{json_output}) {
+        print encode_json({
+            response => 'failure',
+            error    => $args{error},
+            meta => {
+                title  => $args{title},
+                volume => $args{volume},
+                year   => $args{year},
+            },
+        }) . "\n";
+        return;
+    }
+
+    my $error = $args{error};
+    $error .= "\n" if $error !~ /\n\z/;
+    print STDERR $error;
 }
 
 sub build_dest_name {
@@ -389,7 +505,7 @@ sub usage {
     my ($exit_code) = @_;
 
     print <<'USAGE';
-Usage: 2bookdir.pl [--help] book_file [part-number] [book title]
+Usage: 2bookdir.pl [--help] [--json] book_file [part-number] [book title]
 
 Arguments:
   book_file     Required. Path to the source book file or directory.
@@ -443,7 +559,29 @@ sub parse_args {
         $title = @rest ? join(' ', @rest) : undef;
     }
 
+    # If only book_file is provided and it starts with "NUMBER - TITLE",
+    # infer part-number and title from the source name.
+    if (!defined $part && !defined $title) {
+        my $source_name = basename($file);
+        if (-f $file) {
+            $source_name =~ s/\.[^.]+\z//;
+        }
+        if ($source_name =~ /^\s*(\d+(?:\.\d+)*)\s*-\s*(.+?)\s*$/) {
+            $part = normalize_inferred_part_number($1);
+            $title = $2;
+        }
+    }
+
     return ($file, $part, $title);
+}
+
+sub normalize_inferred_part_number {
+    my ($value) = @_;
+    return $value if !defined $value || $value eq '';
+
+    my @segments = split /\./, $value;
+    $segments[0] = int($segments[0]);
+    return join('.', @segments);
 }
 
 sub find_existing_file_prefix {

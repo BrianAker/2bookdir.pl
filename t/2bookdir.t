@@ -8,6 +8,7 @@ use File::Spec;
 use File::Temp qw(tempdir);
 use FindBin;
 use IPC::Open3 qw(open3);
+use JSON::PP qw(decode_json);
 use Symbol qw(gensym);
 use Test::More;
 
@@ -21,16 +22,33 @@ ok(defined $fixture_m4b && -f $fixture_m4b, 'fixture m4b exists');
 
 my ($exit_help, $out_help, $err_help) = run_cmd('perl', $script, '--help');
 is($exit_help, 0, '--help exits successfully');
-like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
+like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--json\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
 is($err_help, '', 'help does not write stderr');
 
 my ($exit_missing, $out_missing, $err_missing) = run_cmd('perl', $script, 'no-such-file.epub');
 ok($exit_missing != 0, 'missing file exits non-zero');
 like($err_missing, qr/does not exist\./, 'missing file reports useful error');
 
+my ($exit_missing_json, $out_missing_json, $err_missing_json) = run_cmd('perl', $script, '--json', 'no-such-file-json.epub');
+ok($exit_missing_json != 0, 'json missing file exits non-zero');
+is($err_missing_json, '', 'json missing file writes no stderr');
+my $missing_json = decode_json($out_missing_json);
+is($missing_json->{response}, 'failure', 'json missing file reports failure response');
+ok(exists $missing_json->{meta}, 'json missing file includes meta');
+
 my $tmp = tempdir(CLEANUP => 1);
 my $old_cwd = getcwd();
 chdir $tmp or die "failed to chdir to temp dir '$tmp': $!";
+
+copy_single_audio_fixture('m4b', 'Json Dog.m4b');
+my ($exit_json_success, $out_json_success, $err_json_success) = run_cmd('perl', $script, '--json', 'Json Dog.m4b', '3', 'Json', 'Dog');
+is($exit_json_success, 0, 'json success exits zero');
+is($err_json_success, '', 'json success writes no stderr');
+my $success_json = decode_json($out_json_success);
+is($success_json->{response}, 'success', 'json success reports success response');
+is($success_json->{meta}->{title}, 'Json Dog', 'json success includes title in meta');
+is($success_json->{meta}->{volume}, '3', 'json success includes volume in meta');
+ok(!defined $success_json->{meta}->{year}, 'json success leaves year undefined when not present');
 
 write_file('book.epub', 'dummy');
 my ($exit_move, $out_move, $err_move) = run_cmd('perl', $script, 'book.epub');
@@ -39,6 +57,7 @@ ok(-d 'book', 'directory from filename is created');
 ok(-f File::Spec->catfile('book', 'book.epub'), 'file moved into target directory');
 is($err_move, '', 'successful move does not write stderr');
 like($out_move, qr/^Moved: book\.epub -> book\/book\.epub$/m, 'success output includes move details');
+like($out_move, qr/^Title: book$/m, 'success output includes title summary line');
 
 write_file('metadata.json', 'dummy');
 my ($exit_part, $out_part, $err_part) = run_cmd('perl', $script, 'metadata.json', '3', 'My', 'Title');
@@ -63,6 +82,8 @@ ok(-d 'Vol. 2 - Frog God', 'volume directory for spaced filename is created');
 ok(-f File::Spec->catfile('Vol. 2 - Frog God', 'Frog God.m4b'), 'spaced filename with part moved into target directory');
 is($err_spaced_part, '', 'spaced filename with part does not write stderr');
 like($out_spaced_part, qr/^Moved: Frog God\.m4b -> Vol\. 2 - Frog God\/Frog God\.m4b$/m, 'spaced filename with part output includes destination');
+like($out_spaced_part, qr/^Title: Frog God$/m, 'volume output includes title summary line');
+like($out_spaced_part, qr/^Volume: 2$/m, 'volume output includes volume summary line');
 
 copy_single_audio_fixture('m4b', 'Frog God.m4b');
 my ($exit_spaced_decimal, $out_spaced_decimal, $err_spaced_decimal) = run_cmd('perl', $script, 'Frog', 'God.m4b', '2.1');
@@ -109,6 +130,32 @@ ok(-f File::Spec->catfile('1999 - Pigs', 'Pigs.mp3'), 'audio file moved under pu
 like(tone_dump_json(File::Spec->catfile('1999 - Pigs', 'Pigs.mp3')), qr/"publishingDate"\s*:\s*"1999-01-01/, 'publishing-date metadata is set to YYYY-01-01');
 is($err_year_prefix, '', 'publishing-date move does not write stderr');
 like($out_year_prefix, qr/^Moved: Pigs\.mp3 -> 1999 - Pigs\/Pigs\.mp3$/m, 'publishing-date move output includes destination');
+like($out_year_prefix, qr/^Title: Pigs$/m, 'publishing-date output includes title summary line');
+like($out_year_prefix, qr/^Year: 1999$/m, 'publishing-date output includes year summary line');
+
+mkdir '02 - Dog God' or die "failed to create fixture dir '02 - Dog God': $!";
+copy_single_audio_fixture('mp3', File::Spec->catfile('02 - Dog God', 'book.mp3'));
+my ($exit_inferred_prefix, $out_inferred_prefix, $err_inferred_prefix) = run_cmd('perl', $script, '02 - Dog God');
+is($exit_inferred_prefix, 0, 'inferred part/title from source directory name succeeds');
+ok(-d 'Vol. 2 - Dog God', 'inferred volume directory is created from source name');
+ok(!-d '02 - Dog God', 'source directory is renamed to inferred volume directory');
+ok(-f File::Spec->catfile('Vol. 2 - Dog God', 'Dog God.mp3'), 'single audio file is renamed to inferred title');
+is($err_inferred_prefix, '', 'inferred part/title directory move does not write stderr');
+like($out_inferred_prefix, qr/^Moved: 02 - Dog God -> Vol\. 2 - Dog God$/m, 'inferred part/title output includes destination');
+
+mkdir '02.5 - Dog God' or die "failed to create fixture dir '02.5 - Dog God': $!";
+copy_single_audio_fixture('m4b', File::Spec->catfile('02.5 - Dog God', 'book.m4b'));
+write_file(File::Spec->catfile('02.5 - Dog God', 'cover.jpg'), 'cover-image');
+write_file(File::Spec->catfile('02.5 - Dog God', 'book.epub'), 'epub-content');
+my ($exit_inferred_decimal_prefix, $out_inferred_decimal_prefix, $err_inferred_decimal_prefix) = run_cmd('perl', $script, '02.5 - Dog God');
+is($exit_inferred_decimal_prefix, 0, 'inferred decimal part/title from source directory name succeeds');
+ok(-d 'Vol. 2.5 - Dog God', 'inferred decimal volume directory is created from source name');
+ok(!-d '02.5 - Dog God', 'decimal source directory is renamed to inferred volume directory');
+ok(-f File::Spec->catfile('Vol. 2.5 - Dog God', 'Dog God.m4b'), 'single m4b audio file is renamed to inferred title');
+ok(-f File::Spec->catfile('Vol. 2.5 - Dog God', 'cover.jpg'), 'cover.jpg is preserved in inferred decimal directory');
+ok(-f File::Spec->catfile('Vol. 2.5 - Dog God', 'book.epub'), 'book.epub is preserved in inferred decimal directory');
+is($err_inferred_decimal_prefix, '', 'inferred decimal part/title directory move does not write stderr');
+like($out_inferred_decimal_prefix, qr/^Moved: 02\.5 - Dog God -> Vol\. 2\.5 - Dog God$/m, 'inferred decimal part/title output includes destination');
 
 mkdir 'Bundle' or die "failed to create fixture dir 'Bundle': $!";
 copy_single_audio_fixture('mp3', File::Spec->catfile('Bundle', 'track01.mp3'));
