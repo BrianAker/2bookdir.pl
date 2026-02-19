@@ -163,12 +163,11 @@ exit 0;
 sub build_dir_name {
     my ($file, $part, $title, $year_hint) = @_;
 
-    my $resolved_title = defined $title && length $title
-      ? $title
-      : basename($file);
+    my $title_from_arg = defined $title && length $title;
+    my $resolved_title = $title_from_arg ? $title : basename($file);
 
     # Strip extension only for file sources; directory names may contain dots.
-    if (-f $file) {
+    if (-f $file && !$title_from_arg) {
         $resolved_title =~ s/\.[^.]+$//;
     }
     $resolved_title =~ s/^\s+|\s+$//g;
@@ -188,11 +187,10 @@ sub build_dir_name {
 sub resolve_title {
     my ($file, $title) = @_;
 
-    my $resolved = defined $title && length $title
-      ? $title
-      : basename($file);
+    my $title_from_arg = defined $title && length $title;
+    my $resolved = $title_from_arg ? $title : basename($file);
 
-    if (-f $file) {
+    if (-f $file && !$title_from_arg) {
         $resolved =~ s/\.[^.]+$//;
     }
     $resolved =~ s/^\s+|\s+$//g;

@@ -330,6 +330,16 @@ ok(-f File::Spec->catfile('Vol. 3 - My Dog Vol 3', 'My Dog Vol 3.mp3'), 'suffix 
 is($err_suffix_vol, '', 'suffix "Vol N" writes no stderr');
 like($out_suffix_vol, qr/^Moved: My Dog Vol 3\.mp3 -> Vol\. 3 - My Dog Vol 3\/My Dog Vol 3\.mp3$/m, 'suffix "Vol N" output includes destination');
 
+copy_single_audio_fixture('m4b', 'Foo Knight in Planet Orange Vol. 3.m4b');
+my ($exit_suffix_vol_dot, $out_suffix_vol_dot, $err_suffix_vol_dot) = run_cmd('perl', $script, 'Foo Knight in Planet Orange Vol. 3.m4b');
+is($exit_suffix_vol_dot, 0, 'suffix pattern "Vol. N" infers volume and title');
+ok(-d 'Vol. 3 - Foo Knight in Planet Orange Vol. 3', 'suffix "Vol. N" creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 3 - Foo Knight in Planet Orange Vol. 3', 'Foo Knight in Planet Orange Vol. 3.m4b'), 'suffix "Vol. N" keeps full title text');
+is($err_suffix_vol_dot, '', 'suffix "Vol. N" writes no stderr');
+like($out_suffix_vol_dot, qr/^Moved: Foo Knight in Planet Orange Vol\. 3\.m4b -> Vol\. 3 - Foo Knight in Planet Orange Vol\. 3\/Foo Knight in Planet Orange Vol\. 3\.m4b$/m, 'suffix "Vol. N" output includes destination');
+like($out_suffix_vol_dot, qr/^Title: Foo Knight in Planet Orange Vol\. 3$/m, 'suffix "Vol. N" output includes title summary line');
+like($out_suffix_vol_dot, qr/^Volume: 3$/m, 'suffix "Vol. N" output includes volume summary line');
+
 copy_single_audio_fixture('mp3', 'My Dog Book 3.mp3');
 my ($exit_suffix_book, $out_suffix_book, $err_suffix_book) = run_cmd('perl', $script, 'My Dog Book 3.mp3');
 is($exit_suffix_book, 0, 'suffix pattern "Book N" infers volume and title');
