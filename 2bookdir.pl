@@ -36,7 +36,7 @@ if ($show_version) {
 }
 usage(1) if @ARGV < 1;
 
-my ($summary_title, $summary_volume, $summary_year, $summary_author, $summary_series);
+my ($summary_title, $summary_volume, $summary_year, $summary_author, $summary_series, $summary_asin);
 my $ok = eval {
     my ($book_file, $part_number, $book_title, $inferred_meta) = parse_args($as_is, $reverse, @ARGV);
     my $is_dir_source = -d $book_file;
@@ -49,6 +49,7 @@ my $ok = eval {
     $summary_year = $resolved_year;
     $summary_author = $inferred_meta->{author};
     $summary_series = $inferred_meta->{series};
+    $summary_asin = $inferred_meta->{asin};
 
     if (!-e $book_file) {
         die "Error: book_file '$book_file' does not exist.\n";
@@ -89,6 +90,7 @@ my $ok = eval {
             year        => $resolved_year,
             author      => $inferred_meta->{author},
             series      => $inferred_meta->{series},
+            asin        => $inferred_meta->{asin},
         );
         return 1;
     }
@@ -131,6 +133,7 @@ my $ok = eval {
         year        => $resolved_year,
         author      => $inferred_meta->{author},
         series      => $inferred_meta->{series},
+        asin        => $inferred_meta->{asin},
     );
     return 1;
 };
@@ -146,6 +149,7 @@ if (!$ok) {
         year        => $summary_year,
         author      => $summary_author,
         series      => $summary_series,
+        asin        => $summary_asin,
     );
     exit 1;
 }
@@ -210,13 +214,14 @@ sub resolve_volume_and_year {
 }
 
 sub print_summary {
-    my ($title, $volume, $year, $author, $series) = @_;
+    my ($title, $volume, $year, $author, $series, $asin) = @_;
 
     print "Title: $title\n";
     print "Volume: $volume\n" if defined $volume && $volume ne '';
     print "Year: $year\n" if defined $year && $year ne '';
     print "Author: $author\n" if defined $author && $author ne '';
     print "Series: $series\n" if defined $series && $series ne '';
+    print "ASIN: $asin\n" if defined $asin && $asin ne '';
 }
 
 sub emit_success {
@@ -230,6 +235,7 @@ sub emit_success {
                 year   => $args{year},
                 author => $args{author},
                 series => $args{series},
+                asin   => $args{asin},
             },
         }) . "\n";
         return;
@@ -237,7 +243,7 @@ sub emit_success {
 
     print "Created/used directory: $args{created_dir}\n" if defined $args{created_dir};
     print "Moved: $args{moved_from} -> $args{moved_to}\n";
-    print_summary($args{title}, $args{volume}, $args{year}, $args{author}, $args{series});
+    print_summary($args{title}, $args{volume}, $args{year}, $args{author}, $args{series}, $args{asin});
 }
 
 sub emit_failure {
@@ -252,6 +258,7 @@ sub emit_failure {
                 year   => $args{year},
                 author => $args{author},
                 series => $args{series},
+                asin   => $args{asin},
             },
         }) . "\n";
         return;
@@ -676,6 +683,16 @@ sub parse_args {
         my $source_name = basename($file);
         if (-f $file) {
             $source_name =~ s/\.[^.]+\z//;
+        }
+        { # PARSE ASIN BLOCK
+            if ($source_name =~ /\[([B0][A-Z0-9]{9})\]\s*$/) {
+                $inferred_meta{asin} = $1;
+                $source_name =~ s/\s*\[[B0][A-Z0-9]{9}\]\s*$//;
+                $source_name = trim($source_name);
+                print "CHECKPOINT: 1: ASIN\n" if $checkpoint;
+            }
+        }
+        { # PARSE NARRATOR BLOCK
         }
         my @dash_split = map { trim($_) } split /\s-\s/, $source_name;
 

@@ -179,13 +179,39 @@ like($out_checkpoint_year_volume, qr/^Title: Foo$/m, 'checkpoint year+volume out
 like($out_checkpoint_year_volume, qr/^Volume: 3$/m, 'checkpoint year+volume output includes volume summary line');
 like($out_checkpoint_year_volume, qr/^Year: 1993$/m, 'checkpoint year+volume output includes year summary line');
 
-copy_single_audio_fixture('mp3', '1993 - Foo Json.mp3');
-my ($exit_year_json, $out_year_json, $err_year_json) = run_cmd('perl', $script, '--json', '1993 - Foo Json.mp3');
+copy_single_audio_fixture('mp3', '1993 - Volume 3 - Asin Foo [B00TEST123].mp3');
+my ($exit_checkpoint_asin, $out_checkpoint_asin, $err_checkpoint_asin) = run_cmd('perl', $script, '--checkpoint', '1993 - Volume 3 - Asin Foo [B00TEST123].mp3');
+is($exit_checkpoint_asin, 0, '--checkpoint with ASIN/year/volume token succeeds');
+ok(-d 'Vol. 3 - Asin Foo', 'checkpoint ASIN case creates expected directory');
+ok(-f File::Spec->catfile('Vol. 3 - Asin Foo', 'Asin Foo.mp3'), 'checkpoint ASIN case renames audio file to title');
+is($err_checkpoint_asin, '', 'checkpoint ASIN case does not write stderr');
+like($out_checkpoint_asin, qr/^CHECKPOINT: 1: ASIN$/m, 'checkpoint ASIN case output includes ASIN checkpoint marker');
+like($out_checkpoint_asin, qr/^CHECKPOINT: 1: YEAR$/m, 'checkpoint ASIN case output includes year checkpoint marker');
+like($out_checkpoint_asin, qr/^CHECKPOINT: 2: VOLUME$/m, 'checkpoint ASIN case output includes volume checkpoint marker');
+like($out_checkpoint_asin, qr/^Moved: 1993 - Volume 3 - Asin Foo \[B00TEST123\]\.mp3 -> Vol\. 3 - Asin Foo\/Asin Foo\.mp3$/m, 'checkpoint ASIN case output includes expected move line');
+like($out_checkpoint_asin, qr/^Title: Asin Foo$/m, 'checkpoint ASIN case output includes title summary line');
+like($out_checkpoint_asin, qr/^Volume: 3$/m, 'checkpoint ASIN case output includes volume summary line');
+like($out_checkpoint_asin, qr/^Year: 1993$/m, 'checkpoint ASIN case output includes year summary line');
+like($out_checkpoint_asin, qr/^ASIN: B00TEST123$/m, 'checkpoint ASIN case output includes ASIN summary line');
+
+copy_single_audio_fixture('mp3', '1993 - Foo Json [B00TEST124].mp3');
+my ($exit_asin_json, $out_asin_json, $err_asin_json) = run_cmd('perl', $script, '--json', '1993 - Foo Json [B00TEST124].mp3');
+is($exit_asin_json, 0, 'json ASIN year-inferred case succeeds');
+is($err_asin_json, '', 'json ASIN year-inferred case writes no stderr');
+my $asin_json = decode_json($out_asin_json);
+is($asin_json->{response}, 'success', 'json ASIN year-inferred case reports success');
+is($asin_json->{meta}->{title}, 'Foo Json', 'json ASIN year-inferred case reports inferred title');
+ok(!defined $asin_json->{meta}->{volume}, 'json ASIN year-inferred case does not set volume');
+is($asin_json->{meta}->{year}, '1993', 'json ASIN year-inferred case reports inferred year');
+is($asin_json->{meta}->{asin}, 'B00TEST124', 'json ASIN year-inferred case reports parsed ASIN');
+
+copy_single_audio_fixture('mp3', '1993 - Plain Foo Json.mp3');
+my ($exit_year_json, $out_year_json, $err_year_json) = run_cmd('perl', $script, '--json', '1993 - Plain Foo Json.mp3');
 is($exit_year_json, 0, 'json year-inferred case succeeds');
 is($err_year_json, '', 'json year-inferred case writes no stderr');
 my $year_json = decode_json($out_year_json);
 is($year_json->{response}, 'success', 'json year-inferred case reports success');
-is($year_json->{meta}->{title}, 'Foo Json', 'json year-inferred case reports inferred title');
+is($year_json->{meta}->{title}, 'Plain Foo Json', 'json year-inferred case reports inferred title');
 ok(!defined $year_json->{meta}->{volume}, 'json year-inferred case does not set volume');
 is($year_json->{meta}->{year}, '1993', 'json year-inferred case reports inferred year');
 
