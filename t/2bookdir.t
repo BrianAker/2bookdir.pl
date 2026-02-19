@@ -165,6 +165,20 @@ ok($checkpoint_part eq '' || lc($checkpoint_part) eq 'null', 'checkpoint year-in
 my $checkpoint_movement = tone_meta(File::Spec->catfile('1993 - Foo', 'Foo.mp3'), '$.meta.movement');
 ok($checkpoint_movement eq '' || lc($checkpoint_movement) eq 'null', 'checkpoint year-inferred result does not set movement metadata');
 
+copy_single_audio_fixture('mp3', '1993 - Volume 3 - Foo.mp3');
+my ($exit_checkpoint_year_volume, $out_checkpoint_year_volume, $err_checkpoint_year_volume) = run_cmd('perl', $script, '--checkpoint', '1993 - Volume 3 - Foo.mp3');
+is($exit_checkpoint_year_volume, 0, '--checkpoint with inferred year and volume token succeeds');
+ok(-d 'Vol. 3 - Foo', 'checkpoint year+volume creates expected directory');
+ok(-f File::Spec->catfile('Vol. 3 - Foo', 'Foo.mp3'), 'checkpoint year+volume renames audio file to title');
+is($err_checkpoint_year_volume, '', 'checkpoint year+volume does not write stderr');
+like($out_checkpoint_year_volume, qr/^CHECKPOINT: 1: YEAR$/m, 'checkpoint year+volume output includes year checkpoint marker');
+like($out_checkpoint_year_volume, qr/^CHECKPOINT: 2: VOLUME$/m, 'checkpoint year+volume output includes volume checkpoint marker');
+like($out_checkpoint_year_volume, qr/^Created\/used directory: Vol\. 3 - Foo$/m, 'checkpoint year+volume output includes created directory line');
+like($out_checkpoint_year_volume, qr/^Moved: 1993 - Volume 3 - Foo\.mp3 -> Vol\. 3 - Foo\/Foo\.mp3$/m, 'checkpoint year+volume output includes expected move line');
+like($out_checkpoint_year_volume, qr/^Title: Foo$/m, 'checkpoint year+volume output includes title summary line');
+like($out_checkpoint_year_volume, qr/^Volume: 3$/m, 'checkpoint year+volume output includes volume summary line');
+like($out_checkpoint_year_volume, qr/^Year: 1993$/m, 'checkpoint year+volume output includes year summary line');
+
 copy_single_audio_fixture('mp3', '1993 - Foo Json.mp3');
 my ($exit_year_json, $out_year_json, $err_year_json) = run_cmd('perl', $script, '--json', '1993 - Foo Json.mp3');
 is($exit_year_json, 0, 'json year-inferred case succeeds');
@@ -220,6 +234,24 @@ like($out_dash_three_named, qr/^Title: You've Got Dogs$/m, 'three-part dashed na
 like($out_dash_three_named, qr/^Volume: 4$/m, 'three-part dashed named input prints volume summary');
 like($out_dash_three_named, qr/^Author: Oh My Gid$/m, 'three-part dashed named input prints author summary');
 like($out_dash_three_named, qr/^Series: Blue Doug$/m, 'three-part dashed named input prints series summary');
+
+copy_single_audio_fixture('mp3', 'Jane Roe - Vol. 5 - Silver Dog.mp3');
+my ($exit_dash_vol_token, $out_dash_vol_token, $err_dash_vol_token) = run_cmd('perl', $script, 'Jane Roe - Vol. 5 - Silver Dog.mp3');
+is($exit_dash_vol_token, 0, 'dash-split volume token "Vol. X" is extracted before parsing');
+ok(-d 'Vol. 5 - Silver Dog', 'dash-split "Vol. X" creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 5 - Silver Dog', 'Silver Dog.mp3'), 'dash-split "Vol. X" infers expected title');
+is($err_dash_vol_token, '', 'dash-split "Vol. X" writes no stderr');
+like($out_dash_vol_token, qr/^Moved: Jane Roe - Vol\. 5 - Silver Dog\.mp3 -> Vol\. 5 - Silver Dog\/Silver Dog\.mp3$/m, 'dash-split "Vol. X" output includes expected destination');
+like($out_dash_vol_token, qr/^Author: Jane Roe$/m, 'dash-split "Vol. X" infers expected author');
+
+copy_single_audio_fixture('mp3', 'Jane Roe - Book 6 - Blue Dog.mp3');
+my ($exit_dash_book_token, $out_dash_book_token, $err_dash_book_token) = run_cmd('perl', $script, 'Jane Roe - Book 6 - Blue Dog.mp3');
+is($exit_dash_book_token, 0, 'dash-split volume token "Book X" is extracted before parsing');
+ok(-d 'Vol. 6 - Blue Dog', 'dash-split "Book X" creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 6 - Blue Dog', 'Blue Dog.mp3'), 'dash-split "Book X" infers expected title');
+is($err_dash_book_token, '', 'dash-split "Book X" writes no stderr');
+like($out_dash_book_token, qr/^Moved: Jane Roe - Book 6 - Blue Dog\.mp3 -> Vol\. 6 - Blue Dog\/Blue Dog\.mp3$/m, 'dash-split "Book X" output includes expected destination');
+like($out_dash_book_token, qr/^Author: Jane Roe$/m, 'dash-split "Book X" infers expected author');
 
 copy_single_audio_fixture('m4b', '1999 - Jane Roe - Saga 7 - My Tale.m4b');
 my ($exit_dash_four_parts, $out_dash_four_parts, $err_dash_four_parts) = run_cmd('perl', $script, '1999 - Jane Roe - Saga 7 - My Tale.m4b');

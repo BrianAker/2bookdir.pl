@@ -687,6 +687,16 @@ sub parse_args {
                 print "CHECKPOINT: 1: YEAR\n" if $checkpoint;
               }
             }
+            { # PARSE VOLUME BLOCK
+              for (my $i = 0; $i < @work; $i++) {
+                my $volume = parse_volume_segment($work[$i]);
+                next if !defined $volume;
+                $part = $volume if !defined $part;
+                splice @work, $i, 1;
+                print "CHECKPOINT: 2: VOLUME\n" if $checkpoint;
+                last;
+              }
+            }
 
             if (@work == 3) {
                 if ($reverse_mode) {
@@ -800,6 +810,18 @@ sub extract_series_and_volume {
     }
 
     return ($clean, undef, 0);
+}
+
+sub parse_volume_segment {
+    my ($value) = @_;
+    my $clean = trim($value);
+    return undef if $clean eq '';
+
+    if ($clean =~ /^(?:Volume|Vol\.?|Book)\s+(\d+)$/i) {
+        return normalize_inferred_part_number($1);
+    }
+
+    return undef;
 }
 
 sub find_existing_file_prefix {
