@@ -23,8 +23,13 @@ ok(defined $fixture_m4b && -f $fixture_m4b, 'fixture m4b exists');
 
 my ($exit_help, $out_help, $err_help) = run_cmd('perl', $script, '--help');
 is($exit_help, 0, '--help exits successfully');
-like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--json\] \[--as-is\] \[--reverse\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
+like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--as-is\] \[--reverse\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
 is($err_help, '', 'help does not write stderr');
+
+my ($exit_version, $out_version, $err_version) = run_cmd('perl', $script, '--version');
+is($exit_version, 0, '--version exits successfully');
+like($out_version, qr/^\d{4}\.\d{2}\.\d{2}-\d+\.\d+\n\z/, '--version prints expected format');
+is($err_version, '', '--version does not write stderr');
 
 my ($exit_missing, $out_missing, $err_missing) = run_cmd('perl', $script, 'no-such-file.epub');
 ok($exit_missing != 0, 'missing file exits non-zero');
@@ -144,6 +149,31 @@ ok(-f File::Spec->catfile('1999 - Pigs', 'Pigs.mp3'), 'audio file moved under pu
 like(tone_dump_json(File::Spec->catfile('1999 - Pigs', 'Pigs.mp3')), qr/"publishingDate"\s*:\s*"1999-01-01/, 'publishing-date metadata is set to YYYY-01-01');
 is($err_year_prefix, '', 'publishing-date move does not write stderr');
 like($out_year_prefix, qr/^Moved: Pigs\.mp3 -> 1999 - Pigs\/Pigs\.mp3$/m, 'publishing-date move output includes destination');
+
+copy_single_audio_fixture('mp3', '1993 - Foo.mp3');
+my ($exit_checkpoint_year, $out_checkpoint_year, $err_checkpoint_year) = run_cmd('perl', $script, '--checkpoint', '1993 - Foo.mp3');
+is($exit_checkpoint_year, 0, '--checkpoint with inferred year in source name succeeds');
+ok(-d '1993 - Foo', 'checkpoint year-inferred directory is created');
+ok(-f File::Spec->catfile('1993 - Foo', 'Foo.mp3'), 'checkpoint year-inferred audio file is renamed to title');
+is($err_checkpoint_year, '', 'checkpoint year-inferred move does not write stderr');
+like($out_checkpoint_year, qr/^CHECKPOINT: 1: YEAR$/m, 'checkpoint output includes year checkpoint marker');
+like($out_checkpoint_year, qr/^Moved: 1993 - Foo\.mp3 -> 1993 - Foo\/Foo\.mp3$/m, 'checkpoint year-inferred output includes destination');
+like($out_checkpoint_year, qr/^Title: Foo$/m, 'checkpoint year-inferred output includes title summary line');
+like($out_checkpoint_year, qr/^Year: 1993$/m, 'checkpoint year-inferred output includes year summary line');
+my $checkpoint_part = tone_part(File::Spec->catfile('1993 - Foo', 'Foo.mp3'));
+ok($checkpoint_part eq '' || lc($checkpoint_part) eq 'null', 'checkpoint year-inferred result does not set part metadata');
+my $checkpoint_movement = tone_meta(File::Spec->catfile('1993 - Foo', 'Foo.mp3'), '$.meta.movement');
+ok($checkpoint_movement eq '' || lc($checkpoint_movement) eq 'null', 'checkpoint year-inferred result does not set movement metadata');
+
+copy_single_audio_fixture('mp3', '1993 - Foo Json.mp3');
+my ($exit_year_json, $out_year_json, $err_year_json) = run_cmd('perl', $script, '--json', '1993 - Foo Json.mp3');
+is($exit_year_json, 0, 'json year-inferred case succeeds');
+is($err_year_json, '', 'json year-inferred case writes no stderr');
+my $year_json = decode_json($out_year_json);
+is($year_json->{response}, 'success', 'json year-inferred case reports success');
+is($year_json->{meta}->{title}, 'Foo Json', 'json year-inferred case reports inferred title');
+ok(!defined $year_json->{meta}->{volume}, 'json year-inferred case does not set volume');
+is($year_json->{meta}->{year}, '1993', 'json year-inferred case reports inferred year');
 
 copy_single_audio_fixture('mp3', '02 Fruppy Goop.mp3');
 my ($exit_inferred_no_separator, $out_inferred_no_separator, $err_inferred_no_separator) = run_cmd('perl', $script, '02 Fruppy Goop.mp3');

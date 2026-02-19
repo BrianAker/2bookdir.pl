@@ -6,7 +6,7 @@ directory and moves a book file into it.
 ## Usage
 
 ```bash
-2bookdir.pl [--help] [--json] [--as-is] [--reverse] book_file [part-number] [book title]
+2bookdir.pl [--help] [--version] [--json] [--as-is] [--reverse] book_file [part-number] [book title]
 ```
 
 ### Arguments
@@ -18,6 +18,8 @@ directory and moves a book file into it.
   (for example, `02 Title.mp3`).
 - `--reverse` (optional): For supported dash-split inference formats, swap the
   first and third string before assigning `author` and `title`.
+- `--version` (optional): Print version as `YEAR.MONTH.DAY-MAJOR.MINOR`.
+  `MONTH` and `DAY` are two-digit fields.
 - `part-number` (optional): Positive numeric value (for example: `2` or
   `2.1`). If provided, directory name is prefixed as `Vol. N - ...`.
   If `part-number` is a 4-digit year, it is treated as PublishingDate and

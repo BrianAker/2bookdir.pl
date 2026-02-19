@@ -12,18 +12,28 @@ use IPC::Open3 qw(open3);
 use JSON::PP qw(encode_json);
 use Symbol qw(gensym);
 
+my $VERSION = '2026.02.18-1.5';
+
 my $help = 0;
 my $json_output = 0;
 my $as_is = 0;
 my $reverse = 0;
+my $show_version = 0;
+my $checkpoint = 0;
 GetOptions(
     'help|h'  => \$help,
     'json'    => \$json_output,
     'as-is'   => \$as_is,
     'reverse' => \$reverse,
+    'version' => \$show_version,
+    'checkpoint' => \$checkpoint,
 ) or usage(1);
 
 usage(0) if $help;
+if ($show_version) {
+    print build_version() . "\n";
+    exit 0;
+}
 usage(1) if @ARGV < 1;
 
 my ($summary_title, $summary_volume, $summary_year, $summary_author, $summary_series);
@@ -47,7 +57,7 @@ my $ok = eval {
         die "Error: '$book_file' is not a regular file or directory.\n";
     }
 
-    my $dir_name = build_dir_name($book_file, $part_number, $book_title);
+    my $dir_name = build_dir_name($book_file, $part_number, $book_title, $inferred_meta->{year});
 
     if ($is_dir_source) {
         my $dest_dir = build_dir_target_path($book_file, $dir_name);
@@ -143,7 +153,7 @@ if (!$ok) {
 exit 0;
 
 sub build_dir_name {
-    my ($file, $part, $title) = @_;
+    my ($file, $part, $title, $year_hint) = @_;
 
     my $resolved_title = defined $title && length $title
       ? $title
@@ -156,11 +166,12 @@ sub build_dir_name {
     $resolved_title =~ s/^\s+|\s+$//g;
     $resolved_title =~ s/\s+/ /g;
 
-    if (defined $part && length $part) {
-        if (is_publishing_year($part)) {
-            return sprintf('%s - %s', $part, sanitize($resolved_title));
+    my $prefix_value = defined $part && length $part ? $part : $year_hint;
+    if (defined $prefix_value && length $prefix_value) {
+        if (is_publishing_year($prefix_value)) {
+            return sprintf('%s - %s', $prefix_value, sanitize($resolved_title));
         }
-        return sprintf('Vol. %s - %s', $part, sanitize($resolved_title));
+        return sprintf('Vol. %s - %s', $prefix_value, sanitize($resolved_title));
     }
 
     return sanitize($resolved_title);
@@ -598,7 +609,7 @@ sub usage {
     my ($exit_code) = @_;
 
     print <<'USAGE';
-Usage: 2bookdir.pl [--help] [--json] [--as-is] [--reverse] book_file [part-number] [book title]
+Usage: 2bookdir.pl [--help] [--version] [--json] [--as-is] [--reverse] book_file [part-number] [book title]
 
 Arguments:
   book_file     Required. Path to the source book file or directory.
@@ -626,6 +637,10 @@ Behavior:
 USAGE
 
     exit $exit_code;
+}
+
+sub build_version {
+    return $VERSION;
 }
 
 sub parse_args {
@@ -666,8 +681,11 @@ sub parse_args {
 
         if (@dash_split >= 2 && @dash_split <= 4) {
             my @work = @dash_split;
-            if ($work[0] =~ /^\d{4}$/) {
+            { # PARSE YEAR BLOCK
+              if ($work[0] =~ /^\d{4}$/) {
                 $inferred_meta{year} = shift @work;
+                print "CHECKPOINT: 1: YEAR\n" if $checkpoint;
+              }
             }
 
             if (@work == 3) {
@@ -679,6 +697,9 @@ sub parse_args {
                 $inferred_meta{series} = $first_pass;
                 $title = $work[2];
                 $part = $series_volume if defined $series_volume;
+            } elsif (@work == 1 && defined $inferred_meta{year}) {
+                # Handle "YEAR - TITLE" without treating YEAR as volume.
+                $title = $work[0];
             } elsif (@work == 2) {
                 my $candidate;
                 if ($reverse_mode) {
