@@ -15,22 +15,30 @@ use Symbol qw(gensym);
 my $help = 0;
 my $json_output = 0;
 my $as_is = 0;
-GetOptions('help|h' => \$help, 'json' => \$json_output, 'as-is' => \$as_is) or usage(1);
+my $reverse = 0;
+GetOptions(
+    'help|h'  => \$help,
+    'json'    => \$json_output,
+    'as-is'   => \$as_is,
+    'reverse' => \$reverse,
+) or usage(1);
 
 usage(0) if $help;
 usage(1) if @ARGV < 1;
 
-my ($summary_title, $summary_volume, $summary_year);
+my ($summary_title, $summary_volume, $summary_year, $summary_author, $summary_series);
 my $ok = eval {
-    my ($book_file, $part_number, $book_title) = parse_args($as_is, @ARGV);
+    my ($book_file, $part_number, $book_title, $inferred_meta) = parse_args($as_is, $reverse, @ARGV);
     my $is_dir_source = -d $book_file;
     my @audio_files = find_audio_files($book_file);
     my $audio_count = scalar @audio_files;
     my $resolved_title = resolve_title($book_file, $book_title);
-    my ($resolved_volume, $resolved_year) = resolve_volume_or_year($part_number);
+    my ($resolved_volume, $resolved_year) = resolve_volume_and_year($part_number, $inferred_meta->{year});
     $summary_title = $resolved_title;
     $summary_volume = $resolved_volume;
     $summary_year = $resolved_year;
+    $summary_author = $inferred_meta->{author};
+    $summary_series = $inferred_meta->{series};
 
     if (!-e $book_file) {
         die "Error: book_file '$book_file' does not exist.\n";
@@ -55,6 +63,9 @@ my $ok = eval {
             dest_root   => $dest_dir,
             title       => $book_title,
             part_number => $part_number,
+            author      => $inferred_meta->{author},
+            series      => $inferred_meta->{series},
+            year        => $inferred_meta->{year},
             audio_files => \@audio_files,
         );
         maybe_create_cover_image($dest_dir);
@@ -66,6 +77,8 @@ my $ok = eval {
             title       => $resolved_title,
             volume      => $resolved_volume,
             year        => $resolved_year,
+            author      => $inferred_meta->{author},
+            series      => $inferred_meta->{series},
         );
         return 1;
     }
@@ -90,9 +103,12 @@ my $ok = eval {
             path        => $dest_file,
             album       => album_name_from_path($dest_file),
             part_number => $part_number,
+            author      => $inferred_meta->{author},
+            series      => $inferred_meta->{series},
+            year        => $inferred_meta->{year},
         );
-    } elsif ($audio_count == 1 && is_publishing_year($part_number)) {
-        tone_set_publishing_date($dest_file, $part_number);
+    } elsif ($audio_count == 1 && (is_publishing_year($part_number) || defined $inferred_meta->{year})) {
+        tone_set_publishing_date($dest_file, $inferred_meta->{year} // $part_number);
     }
 
     emit_success(
@@ -103,6 +119,8 @@ my $ok = eval {
         title       => $resolved_title,
         volume      => $resolved_volume,
         year        => $resolved_year,
+        author      => $inferred_meta->{author},
+        series      => $inferred_meta->{series},
     );
     return 1;
 };
@@ -116,6 +134,8 @@ if (!$ok) {
         title       => $summary_title,
         volume      => $summary_volume,
         year        => $summary_year,
+        author      => $summary_author,
+        series      => $summary_series,
     );
     exit 1;
 }
@@ -161,23 +181,31 @@ sub resolve_title {
     return sanitize($resolved);
 }
 
-sub resolve_volume_or_year {
-    my ($part) = @_;
-    return (undef, undef) if !defined $part || $part eq '';
+sub resolve_volume_and_year {
+    my ($part, $year_hint) = @_;
 
-    if (is_publishing_year($part)) {
-        return (undef, $part);
+    my $volume;
+    my $year = $year_hint;
+
+    if (defined $part && $part ne '') {
+        if (is_publishing_year($part) && !defined $year_hint) {
+            $year = $part;
+        } else {
+            $volume = $part;
+        }
     }
 
-    return ($part, undef);
+    return ($volume, $year);
 }
 
 sub print_summary {
-    my ($title, $volume, $year) = @_;
+    my ($title, $volume, $year, $author, $series) = @_;
 
     print "Title: $title\n";
     print "Volume: $volume\n" if defined $volume && $volume ne '';
     print "Year: $year\n" if defined $year && $year ne '';
+    print "Author: $author\n" if defined $author && $author ne '';
+    print "Series: $series\n" if defined $series && $series ne '';
 }
 
 sub emit_success {
@@ -189,6 +217,8 @@ sub emit_success {
                 title  => $args{title},
                 volume => $args{volume},
                 year   => $args{year},
+                author => $args{author},
+                series => $args{series},
             },
         }) . "\n";
         return;
@@ -196,7 +226,7 @@ sub emit_success {
 
     print "Created/used directory: $args{created_dir}\n" if defined $args{created_dir};
     print "Moved: $args{moved_from} -> $args{moved_to}\n";
-    print_summary($args{title}, $args{volume}, $args{year});
+    print_summary($args{title}, $args{volume}, $args{year}, $args{author}, $args{series});
 }
 
 sub emit_failure {
@@ -209,6 +239,8 @@ sub emit_failure {
                 title  => $args{title},
                 volume => $args{volume},
                 year   => $args{year},
+                author => $args{author},
+                series => $args{series},
             },
         }) . "\n";
         return;
@@ -307,6 +339,9 @@ sub maybe_rename_single_audio {
         path        => $renamed_audio,
         album       => album_name_from_path($renamed_audio),
         part_number => $args{part_number},
+        author      => $args{author},
+        series      => $args{series},
+        year        => $args{year},
     );
 }
 
@@ -357,9 +392,14 @@ sub tone_set_audio_metadata {
     my $path = $args{path};
     my $album = $args{album};
     my $part_number = $args{part_number};
+    my $author = $args{author};
+    my $series = $args{series};
+    my $year = $args{year};
     return if !defined $album || $album eq '';
 
     my @tag_cmd = ('tone', 'tag', '--meta-album', $album);
+    push @tag_cmd, '--meta-artist', $author if defined $author && $author ne '';
+    push @tag_cmd, '--meta-movement-name', $series if defined $series && $series ne '';
     if (defined $part_number && $part_number ne '' && !is_publishing_year($part_number)) {
         if ($part_number =~ /^\d+$/ && $part_number >= 0) {
             push @tag_cmd, '--meta-movement', $part_number;
@@ -370,6 +410,9 @@ sub tone_set_audio_metadata {
         }
     } elsif (defined $part_number && is_publishing_year($part_number)) {
         push @tag_cmd, "--meta-publishing-date=$part_number-01-01";
+    }
+    if (defined $year && is_publishing_year($year)) {
+        push @tag_cmd, "--meta-publishing-date=$year-01-01";
     }
     push @tag_cmd, $path;
 
@@ -440,6 +483,9 @@ sub tone_set_audio_metadata {
         }
     } elsif (defined $part_number && is_publishing_year($part_number)) {
         verify_tone_publishing_date($path, $part_number);
+    }
+    if (defined $year && is_publishing_year($year)) {
+        verify_tone_publishing_date($path, $year);
     }
 }
 
@@ -552,10 +598,12 @@ sub usage {
     my ($exit_code) = @_;
 
     print <<'USAGE';
-Usage: 2bookdir.pl [--help] [--json] [--as-is] book_file [part-number] [book title]
+Usage: 2bookdir.pl [--help] [--json] [--as-is] [--reverse] book_file [part-number] [book title]
 
 Arguments:
   book_file     Required. Path to the source book file or directory.
+  --reverse     Optional. Reverse title/author position for supported
+                dash-split inference formats.
   part-number   Optional. Positive numeric value (for example: 2 or 2.1) used
                 to prefix the directory as "Vol. N - ...". If it is a 4-digit
                 year, it is treated as PublishingDate and the directory prefix
@@ -581,7 +629,7 @@ USAGE
 }
 
 sub parse_args {
-    my ($as_is_mode, @args) = @_;
+    my ($as_is_mode, $reverse_mode, @args) = @_;
 
     my ($file, @rest);
     if (-e $args[0]) {
@@ -599,6 +647,7 @@ sub parse_args {
     }
 
     my ($part, $title);
+    my %inferred_meta;
     if (@rest && $rest[0] =~ /^\d+(?:\.\d+)*$/) {
         $part = shift @rest;
         $title = @rest ? join(' ', @rest) : undef;
@@ -613,57 +662,89 @@ sub parse_args {
         if (-f $file) {
             $source_name =~ s/\.[^.]+\z//;
         }
-        my @dash_split = split /\s-\s/, $source_name;
+        my @dash_split = map { trim($_) } split /\s-\s/, $source_name;
 
-        # Dashed inference currently supports only two segments.
-        if (@dash_split == 2 && $dash_split[0] =~ /^\d+(?:\.\d+)*$/) {
-            $part = normalize_inferred_part_number($dash_split[0]);
-            $title = $dash_split[1];
-        } elsif (@dash_split > 2) {
-            # Do not attempt other inference modes when dashed syntax has
-            # more than two segments.
-        } elsif (
-            !$as_is_mode
-            && $source_name =~ /^\s*(\d+)\.\s+(.+?)\s*$/
-        ) {
-            # Inference mode for names like "101. Title".
-            $part = normalize_inferred_part_number($1);
-            $title = $2;
-        } elsif (
-            !$as_is_mode
-            && $source_name =~ /^\s*(\d+(?:\.\d+)*)\s+(.+?)\s*$/
-        ) {
-            # New inference mode for names like "02 Title" when no separator is present.
-            $part = normalize_inferred_part_number($1);
-            $title = $2;
-        } elsif (
-            !$as_is_mode
-            && $source_name =~ /^\s*(.+?)\s+Volume\s+(\d+)\s*$/i
-        ) {
-            $part = normalize_inferred_part_number($2);
-            $title = $source_name;
-        } elsif (
-            !$as_is_mode
-            && $source_name =~ /^\s*(.+?)\s+Vol\s+(\d+)\s*$/i
-        ) {
-            $part = normalize_inferred_part_number($2);
-            $title = $source_name;
-        } elsif (
-            !$as_is_mode
-            && $source_name =~ /^\s*(.+?)\s+Book\s+(\d+)\s*$/i
-        ) {
-            $part = normalize_inferred_part_number($2);
-            $title = $source_name;
-        } elsif (
-            !$as_is_mode
-            && $source_name =~ /^\s*(.+?)\s+(\d+)\s*$/
-        ) {
-            $part = normalize_inferred_part_number($2);
-            $title = $source_name;
+        if (@dash_split >= 2 && @dash_split <= 4) {
+            my @work = @dash_split;
+            if ($work[0] =~ /^\d{4}$/) {
+                $inferred_meta{year} = shift @work;
+            }
+
+            if (@work == 3) {
+                if ($reverse_mode) {
+                    @work[0,2] = @work[2,0];
+                }
+                $inferred_meta{author} = $work[0];
+                my ($first_pass, $series_volume, $has_series_volume) = extract_series_and_volume($work[1]);
+                $inferred_meta{series} = $first_pass;
+                $title = $work[2];
+                $part = $series_volume if defined $series_volume;
+            } elsif (@work == 2) {
+                my $candidate;
+                if ($reverse_mode) {
+                    $title = $work[0];
+                    $candidate = $work[1];
+                } else {
+                    $title = $work[1];
+                    $candidate = $work[0];
+                }
+                my ($first_pass, $series_volume, $has_series_volume) = extract_series_and_volume($candidate);
+                if ($has_series_volume) {
+                    $inferred_meta{series} = $first_pass;
+                    $part = $series_volume if defined $series_volume;
+                } else {
+                    $inferred_meta{author} = $candidate;
+                }
+            }
+        }
+
+        if (!defined $part && !defined $title) {
+            if (@dash_split == 2 && $dash_split[0] =~ /^\d+(?:\.\d+)*$/) {
+                $part = normalize_inferred_part_number($dash_split[0]);
+                $title = $dash_split[1];
+            } elsif (
+                !$as_is_mode
+                && $source_name =~ /^\s*(\d+)\.\s+(.+?)\s*$/
+            ) {
+                # Inference mode for names like "101. Title".
+                $part = normalize_inferred_part_number($1);
+                $title = $2;
+            } elsif (
+                !$as_is_mode
+                && $source_name =~ /^\s*(\d+(?:\.\d+)*)\s+(.+?)\s*$/
+            ) {
+                # New inference mode for names like "02 Title" when no separator is present.
+                $part = normalize_inferred_part_number($1);
+                $title = $2;
+            } elsif (
+                !$as_is_mode
+                && $source_name =~ /^\s*(.+?)\s+Volume\s+(\d+)\s*$/i
+            ) {
+                $part = normalize_inferred_part_number($2);
+                $title = $source_name;
+            } elsif (
+                !$as_is_mode
+                && $source_name =~ /^\s*(.+?)\s+Vol\s+(\d+)\s*$/i
+            ) {
+                $part = normalize_inferred_part_number($2);
+                $title = $source_name;
+            } elsif (
+                !$as_is_mode
+                && $source_name =~ /^\s*(.+?)\s+Book\s+(\d+)\s*$/i
+            ) {
+                $part = normalize_inferred_part_number($2);
+                $title = $source_name;
+            } elsif (
+                !$as_is_mode
+                && $source_name =~ /^\s*(.+?)\s+(\d+)\s*$/
+            ) {
+                $part = normalize_inferred_part_number($2);
+                $title = $source_name;
+            }
         }
     }
 
-    return ($file, $part, $title);
+    return ($file, $part, $title, \%inferred_meta);
 }
 
 sub normalize_inferred_part_number {
@@ -673,6 +754,31 @@ sub normalize_inferred_part_number {
     my @segments = split /\./, $value;
     $segments[0] = int($segments[0]);
     return join('.', @segments);
+}
+
+sub trim {
+    my ($value) = @_;
+    return '' if !defined $value;
+    $value =~ s/^\s+|\s+$//g;
+    return $value;
+}
+
+sub extract_series_and_volume {
+    my ($series) = @_;
+    my $clean = trim($series);
+    return ('', undef, 0) if $clean eq '';
+
+    my @tokens = split /\s+/, $clean;
+    my $last = $tokens[-1];
+    if ($last =~ /^(\d+(?:\.\d+)?)$/) {
+        my $volume = normalize_inferred_part_number($1);
+        pop @tokens;
+        my $first_pass = trim(join(' ', @tokens));
+        $first_pass = $clean if $first_pass eq '';
+        return ($first_pass, $volume, 1);
+    }
+
+    return ($clean, undef, 0);
 }
 
 sub find_existing_file_prefix {

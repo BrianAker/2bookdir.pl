@@ -23,7 +23,7 @@ ok(defined $fixture_m4b && -f $fixture_m4b, 'fixture m4b exists');
 
 my ($exit_help, $out_help, $err_help) = run_cmd('perl', $script, '--help');
 is($exit_help, 0, '--help exits successfully');
-like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--json\] \[--as-is\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
+like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--json\] \[--as-is\] \[--reverse\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
 is($err_help, '', 'help does not write stderr');
 
 my ($exit_missing, $out_missing, $err_missing) = run_cmd('perl', $script, 'no-such-file.epub');
@@ -173,11 +173,43 @@ like($out_inferred_decimal_numeric_prefix, qr/^Moved: 101\.1 Cats\.m4b -> Vol\. 
 
 copy_single_audio_fixture('mp3', '2 - My - Dog.mp3');
 my ($exit_dash_three_parts, $out_dash_three_parts, $err_dash_three_parts) = run_cmd('perl', $script, '2 - My - Dog.mp3');
-is($exit_dash_three_parts, 0, 'dashed names with more than two segments do not infer volume');
-ok(-d '2 - My - Dog', 'three-part dashed name keeps original directory title');
-ok(-f File::Spec->catfile('2 - My - Dog', '2 - My - Dog.mp3'), 'three-part dashed name keeps original filename');
+is($exit_dash_three_parts, 0, 'three-part dashed names infer author/series/title');
+ok(-d 'Dog', 'three-part dashed name uses third segment as title');
+ok(-f File::Spec->catfile('Dog', 'Dog.mp3'), 'three-part dashed name renames file to inferred title');
 is($err_dash_three_parts, '', 'three-part dashed name writes no stderr');
-like($out_dash_three_parts, qr/^Moved: 2 - My - Dog\.mp3 -> 2 - My - Dog\/2 - My - Dog\.mp3$/m, 'three-part dashed output keeps as-is move destination');
+like($out_dash_three_parts, qr/^Moved: 2 - My - Dog\.mp3 -> Dog\/Dog\.mp3$/m, 'three-part dashed output uses inferred title destination');
+
+copy_single_audio_fixture('m4b', q{Oh My Gid - Blue Doug 04 - You've Got Dogs.m4b});
+my ($exit_dash_three_named, $out_dash_three_named, $err_dash_three_named) = run_cmd('perl', $script, q{Oh My Gid - Blue Doug 04 - You've Got Dogs.m4b});
+is($exit_dash_three_named, 0, 'three-part dashed named input infers expected metadata');
+ok(-d q{Vol. 4 - You've Got Dogs}, 'three-part dashed named input creates expected volume directory');
+ok(-f File::Spec->catfile(q{Vol. 4 - You've Got Dogs}, q{You've Got Dogs.m4b}), 'three-part dashed named input renames file to inferred title');
+is($err_dash_three_named, '', 'three-part dashed named input writes no stderr');
+like($out_dash_three_named, qr/^Moved: Oh My Gid - Blue Doug 04 - You've Got Dogs\.m4b -> Vol\. 4 - You've Got Dogs\/You've Got Dogs\.m4b$/m, 'three-part dashed named input has expected move output');
+like($out_dash_three_named, qr/^Title: You've Got Dogs$/m, 'three-part dashed named input prints title summary');
+like($out_dash_three_named, qr/^Volume: 4$/m, 'three-part dashed named input prints volume summary');
+like($out_dash_three_named, qr/^Author: Oh My Gid$/m, 'three-part dashed named input prints author summary');
+like($out_dash_three_named, qr/^Series: Blue Doug$/m, 'three-part dashed named input prints series summary');
+
+copy_single_audio_fixture('m4b', '1999 - Jane Roe - Saga 7 - My Tale.m4b');
+my ($exit_dash_four_parts, $out_dash_four_parts, $err_dash_four_parts) = run_cmd('perl', $script, '1999 - Jane Roe - Saga 7 - My Tale.m4b');
+is($exit_dash_four_parts, 0, 'four-part dashed names infer year/author/series/title');
+ok(-d 'Vol. 7 - My Tale', 'four-part dashed name uses inferred series volume for directory');
+ok(-f File::Spec->catfile('Vol. 7 - My Tale', 'My Tale.m4b'), 'four-part dashed name renames file to inferred title');
+is(tone_meta(File::Spec->catfile('Vol. 7 - My Tale', 'My Tale.m4b'), '$.meta.artist'), 'Jane Roe', 'four-part dashed name writes inferred author metadata');
+like(tone_dump_json(File::Spec->catfile('Vol. 7 - My Tale', 'My Tale.m4b')), qr/"publishingDate"\s*:\s*"1999-01-01/, 'four-part dashed name writes inferred year as publishing date');
+is($err_dash_four_parts, '', 'four-part dashed name writes no stderr');
+like($out_dash_four_parts, qr/^Moved: 1999 - Jane Roe - Saga 7 - My Tale\.m4b -> Vol\. 7 - My Tale\/My Tale\.m4b$/m, 'four-part dashed output uses inferred volume/title destination');
+like($out_dash_four_parts, qr/^Year: 1999$/m, 'four-part dashed output includes inferred year summary');
+
+copy_single_audio_fixture('m4b', 'My Reverse Title - Series 9 - Jane Roe.m4b');
+my ($exit_reverse_three_parts, $out_reverse_three_parts, $err_reverse_three_parts) = run_cmd('perl', $script, '--reverse', 'My Reverse Title - Series 9 - Jane Roe.m4b');
+is($exit_reverse_three_parts, 0, 'reverse mode swaps first and third string in three-part split');
+ok(-d 'Vol. 9 - My Reverse Title', 'reverse mode sets title from first string');
+ok(-f File::Spec->catfile('Vol. 9 - My Reverse Title', 'My Reverse Title.m4b'), 'reverse mode renames file using reversed title');
+is(tone_meta(File::Spec->catfile('Vol. 9 - My Reverse Title', 'My Reverse Title.m4b'), '$.meta.artist'), 'Jane Roe', 'reverse mode sets author from third string');
+is($err_reverse_three_parts, '', 'reverse mode three-part writes no stderr');
+like($out_reverse_three_parts, qr/^Moved: My Reverse Title - Series 9 - Jane Roe\.m4b -> Vol\. 9 - My Reverse Title\/My Reverse Title\.m4b$/m, 'reverse mode three-part output includes destination');
 
 copy_single_audio_fixture('mp3', 'My Dog Volume 3.mp3');
 my ($exit_suffix_volume, $out_suffix_volume, $err_suffix_volume) = run_cmd('perl', $script, 'My Dog Volume 3.mp3');
