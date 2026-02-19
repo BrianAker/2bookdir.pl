@@ -36,7 +36,7 @@ if ($show_version) {
 }
 usage(1) if @ARGV < 1;
 
-my ($summary_title, $summary_volume, $summary_year, $summary_author, $summary_series, $summary_asin);
+my ($summary_title, $summary_volume, $summary_year, $summary_author, $summary_series, $summary_asin, $summary_narrators);
 my $ok = eval {
     my ($book_file, $part_number, $book_title, $inferred_meta) = parse_args($as_is, $reverse, @ARGV);
     my $is_dir_source = -d $book_file;
@@ -50,6 +50,7 @@ my $ok = eval {
     $summary_author = $inferred_meta->{author};
     $summary_series = $inferred_meta->{series};
     $summary_asin = $inferred_meta->{asin};
+    $summary_narrators = $inferred_meta->{narrators};
 
     if (!-e $book_file) {
         die "Error: book_file '$book_file' does not exist.\n";
@@ -91,6 +92,7 @@ my $ok = eval {
             author      => $inferred_meta->{author},
             series      => $inferred_meta->{series},
             asin        => $inferred_meta->{asin},
+            narrators   => $inferred_meta->{narrators},
         );
         return 1;
     }
@@ -134,6 +136,7 @@ my $ok = eval {
         author      => $inferred_meta->{author},
         series      => $inferred_meta->{series},
         asin        => $inferred_meta->{asin},
+        narrators   => $inferred_meta->{narrators},
     );
     return 1;
 };
@@ -150,6 +153,7 @@ if (!$ok) {
         author      => $summary_author,
         series      => $summary_series,
         asin        => $summary_asin,
+        narrators   => $summary_narrators,
     );
     exit 1;
 }
@@ -214,7 +218,7 @@ sub resolve_volume_and_year {
 }
 
 sub print_summary {
-    my ($title, $volume, $year, $author, $series, $asin) = @_;
+    my ($title, $volume, $year, $author, $series, $asin, $narrators) = @_;
 
     print "Title: $title\n";
     print "Volume: $volume\n" if defined $volume && $volume ne '';
@@ -222,6 +226,7 @@ sub print_summary {
     print "Author: $author\n" if defined $author && $author ne '';
     print "Series: $series\n" if defined $series && $series ne '';
     print "ASIN: $asin\n" if defined $asin && $asin ne '';
+    print "Narrators: $narrators\n" if defined $narrators && $narrators ne '';
 }
 
 sub emit_success {
@@ -236,6 +241,7 @@ sub emit_success {
                 author => $args{author},
                 series => $args{series},
                 asin   => $args{asin},
+                narrators => $args{narrators},
             },
         }) . "\n";
         return;
@@ -243,7 +249,7 @@ sub emit_success {
 
     print "Created/used directory: $args{created_dir}\n" if defined $args{created_dir};
     print "Moved: $args{moved_from} -> $args{moved_to}\n";
-    print_summary($args{title}, $args{volume}, $args{year}, $args{author}, $args{series}, $args{asin});
+    print_summary($args{title}, $args{volume}, $args{year}, $args{author}, $args{series}, $args{asin}, $args{narrators});
 }
 
 sub emit_failure {
@@ -259,6 +265,7 @@ sub emit_failure {
                 author => $args{author},
                 series => $args{series},
                 asin   => $args{asin},
+                narrators => $args{narrators},
             },
         }) . "\n";
         return;
@@ -693,6 +700,12 @@ sub parse_args {
             }
         }
         { # PARSE NARRATOR BLOCK
+            if ($source_name =~ /\{([^{}]+)\}\s*$/) {
+                $inferred_meta{narrators} = trim($1);
+                $source_name =~ s/\s*\{[^{}]+\}\s*$//;
+                $source_name = trim($source_name);
+                print "CHECKPOINT: 1: NARRATOR\n" if $checkpoint;
+            }
         }
         my @dash_split = map { trim($_) } split /\s-\s/, $source_name;
 

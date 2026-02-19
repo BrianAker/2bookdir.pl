@@ -194,6 +194,21 @@ like($out_checkpoint_asin, qr/^Volume: 3$/m, 'checkpoint ASIN case output includ
 like($out_checkpoint_asin, qr/^Year: 1993$/m, 'checkpoint ASIN case output includes year summary line');
 like($out_checkpoint_asin, qr/^ASIN: B00TEST123$/m, 'checkpoint ASIN case output includes ASIN summary line');
 
+copy_single_audio_fixture('mp3', '1993 - Volume 3 - Narrated Foo {Jane Roe}.mp3');
+my ($exit_checkpoint_narrator, $out_checkpoint_narrator, $err_checkpoint_narrator) = run_cmd('perl', $script, '--checkpoint', '1993 - Volume 3 - Narrated Foo {Jane Roe}.mp3');
+is($exit_checkpoint_narrator, 0, '--checkpoint with narrator/year/volume token succeeds');
+ok(-d 'Vol. 3 - Narrated Foo', 'checkpoint narrator case creates expected directory');
+ok(-f File::Spec->catfile('Vol. 3 - Narrated Foo', 'Narrated Foo.mp3'), 'checkpoint narrator case renames audio file to title');
+is($err_checkpoint_narrator, '', 'checkpoint narrator case does not write stderr');
+like($out_checkpoint_narrator, qr/^CHECKPOINT: 1: NARRATOR$/m, 'checkpoint narrator case output includes narrator checkpoint marker');
+like($out_checkpoint_narrator, qr/^CHECKPOINT: 1: YEAR$/m, 'checkpoint narrator case output includes year checkpoint marker');
+like($out_checkpoint_narrator, qr/^CHECKPOINT: 2: VOLUME$/m, 'checkpoint narrator case output includes volume checkpoint marker');
+like($out_checkpoint_narrator, qr/^Moved: 1993 - Volume 3 - Narrated Foo \{Jane Roe\}\.mp3 -> Vol\. 3 - Narrated Foo\/Narrated Foo\.mp3$/m, 'checkpoint narrator case output includes expected move line');
+like($out_checkpoint_narrator, qr/^Title: Narrated Foo$/m, 'checkpoint narrator case output includes title summary line');
+like($out_checkpoint_narrator, qr/^Volume: 3$/m, 'checkpoint narrator case output includes volume summary line');
+like($out_checkpoint_narrator, qr/^Year: 1993$/m, 'checkpoint narrator case output includes year summary line');
+like($out_checkpoint_narrator, qr/^Narrators: Jane Roe$/m, 'checkpoint narrator case output includes narrators summary line');
+
 copy_single_audio_fixture('mp3', '1993 - Foo Json [B00TEST124].mp3');
 my ($exit_asin_json, $out_asin_json, $err_asin_json) = run_cmd('perl', $script, '--json', '1993 - Foo Json [B00TEST124].mp3');
 is($exit_asin_json, 0, 'json ASIN year-inferred case succeeds');
