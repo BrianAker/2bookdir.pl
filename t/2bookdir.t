@@ -219,6 +219,7 @@ is($asin_json->{meta}->{title}, 'Foo Json', 'json ASIN year-inferred case report
 ok(!defined $asin_json->{meta}->{volume}, 'json ASIN year-inferred case does not set volume');
 is($asin_json->{meta}->{year}, '1993', 'json ASIN year-inferred case reports inferred year');
 is($asin_json->{meta}->{asin}, 'B00TEST124', 'json ASIN year-inferred case reports parsed ASIN');
+like(tone_dump_json(File::Spec->catfile('1993 - Foo Json', 'Foo Json.mp3')), qr/"additionalFields"\s*:\s*\{[\s\S]*?"[^"]*ASIN"\s*:\s*"B00TEST124"/i, 'json ASIN year-inferred case writes AUDIBLE_ASIN metadata');
 
 copy_single_audio_fixture('mp3', '1993 - Plain Foo Json.mp3');
 my ($exit_year_json, $out_year_json, $err_year_json) = run_cmd('perl', $script, '--json', '1993 - Plain Foo Json.mp3');

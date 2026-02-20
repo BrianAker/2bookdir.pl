@@ -84,6 +84,7 @@ my $ok = eval {
             author      => $inferred_meta->{author},
             series      => $inferred_meta->{series},
             year        => $inferred_meta->{year},
+            asin        => $inferred_meta->{asin},
             audio_files => \@audio_files,
         );
         maybe_create_cover_image($dest_dir);
@@ -126,6 +127,7 @@ my $ok = eval {
             author      => $inferred_meta->{author},
             series      => $inferred_meta->{series},
             year        => $inferred_meta->{year},
+            asin        => $inferred_meta->{asin},
         );
     } elsif ($audio_count == 1 && (is_publishing_year($part_number) || defined $inferred_meta->{year})) {
         tone_set_publishing_date($dest_file, $inferred_meta->{year} // $part_number);
@@ -371,6 +373,7 @@ sub maybe_rename_single_audio {
         author      => $args{author},
         series      => $args{series},
         year        => $args{year},
+        asin        => $args{asin},
     );
 }
 
@@ -424,11 +427,13 @@ sub tone_set_audio_metadata {
     my $author = $args{author};
     my $series = $args{series};
     my $year = $args{year};
+    my $asin = $args{asin};
     return if !defined $album || $album eq '';
 
     my @tag_cmd = ('tone', 'tag', '--meta-album', $album);
     push @tag_cmd, '--meta-artist', $author if defined $author && $author ne '';
     push @tag_cmd, '--meta-movement-name', $series if defined $series && $series ne '';
+    push @tag_cmd, '--meta-additional-field', "AUDIBLE_ASIN=$asin" if defined $asin && $asin ne '';
     if (defined $part_number && $part_number ne '' && !is_publishing_year($part_number)) {
         if ($part_number =~ /^\d+$/ && $part_number >= 0) {
             push @tag_cmd, '--meta-movement', $part_number;
@@ -515,6 +520,18 @@ sub tone_set_audio_metadata {
     }
     if (defined $year && is_publishing_year($year)) {
         verify_tone_publishing_date($path, $year);
+    }
+    if (defined $asin && $asin ne '') {
+        my ($dump_exit, $dump_out, $dump_err) = run_external_cmd(
+            'tone', 'dump', $path, '--format', 'json'
+        );
+        my $dump_combined = lc("$dump_out\n$dump_err");
+        if ($dump_combined =~ /\b(error|failed|panic|exception)\b/) {
+            die "Error: tone AUDIBLE_ASIN verification failed for '$path': $dump_out$dump_err";
+        }
+        if ($dump_out !~ /"additionalFields"\s*:\s*\{[\s\S]*?"[^"]*ASIN"\s*:\s*"\Q$asin\E"/i) {
+            die "Error: tone AUDIBLE_ASIN mismatch for '$path': expected '$asin'";
+        }
     }
 }
 
