@@ -459,6 +459,27 @@ like($out_year_volume_token, qr/^Title: Wizards First Rule$/m, 'year + volume-to
 like($out_year_volume_token, qr/^Volume: 1$/m, 'year + volume-token dashed output includes volume summary');
 like($out_year_volume_token, qr/^Year: 1994$/m, 'year + volume-token dashed output includes year summary');
 
+mkdir '(1994) - Wizards First Rule' or die "failed to create fixture dir '(1994) - Wizards First Rule': $!";
+my ($exit_wrapped_year_prefix, $out_wrapped_year_prefix, $err_wrapped_year_prefix) = run_cmd('perl', $script, '(1994) - Wizards First Rule');
+is($exit_wrapped_year_prefix, 0, 'parenthesized year prefix infers year and title');
+ok(-d '1994 - Wizards First Rule', 'parenthesized year prefix directory is renamed to publishing-date format');
+ok(!-d '(1994) - Wizards First Rule', 'parenthesized year prefix source directory no longer exists after rename');
+is($err_wrapped_year_prefix, '', 'parenthesized year prefix does not write stderr');
+like($out_wrapped_year_prefix, qr/^Title: Wizards First Rule$/m, 'parenthesized year prefix output includes title summary');
+like($out_wrapped_year_prefix, qr/^Year: 1994$/m, 'parenthesized year prefix output includes year summary');
+
+remove_tree('1994 - Wizards First Rule');
+copy_single_audio_fixture('mp3', 'Wizards First Rule [1994].mp3');
+my ($exit_wrapped_year_suffix, $out_wrapped_year_suffix, $err_wrapped_year_suffix) = run_cmd('perl', $script, 'Wizards First Rule [1994].mp3');
+is($exit_wrapped_year_suffix, 0, 'bracketed year suffix infers year and title');
+ok(-d '1994 - Wizards First Rule', 'bracketed year suffix creates publishing-date directory');
+ok(-f File::Spec->catfile('1994 - Wizards First Rule', 'Wizards First Rule.mp3'), 'bracketed year suffix renames audio file to inferred title');
+is($err_wrapped_year_suffix, '', 'bracketed year suffix does not write stderr');
+like($out_wrapped_year_suffix, qr/^Title: Wizards First Rule$/m, 'bracketed year suffix output includes title summary');
+like($out_wrapped_year_suffix, qr/^Year: 1994$/m, 'bracketed year suffix output includes year summary');
+
+remove_tree('1994 - Wizards First Rule');
+
 mkdir 'Vol. 1 - 1994 - Wizards First Rule - A Really Good Subtitle {Sam Tsoutsouvas}'
   or die "failed to create fixture dir 'Vol. 1 - 1994 - Wizards First Rule - A Really Good Subtitle {Sam Tsoutsouvas}': $!";
 copy_single_audio_fixture(

@@ -653,6 +653,17 @@ sub is_publishing_year {
     return defined $value && $value =~ /^\d{4}$/;
 }
 
+sub parse_year_token {
+    my ($value) = @_;
+    return undef if !defined $value;
+    my $clean = trim($value);
+
+    return $1 if $clean =~ /^(\d{4})$/;
+    return $1 if $clean =~ /^\((\d{4})\)$/;
+    return $1 if $clean =~ /^\[(\d{4})\]$/;
+    return undef;
+}
+
 sub build_dir_target_path {
     my ($source, $new_name) = @_;
     my $parent = dirname($source);
@@ -793,8 +804,10 @@ sub parse_args {
         if (@dash_split >= 2 && @dash_split <= 4) {
             my @work = @dash_split;
             { # PARSE YEAR BLOCK
-              if ($work[0] =~ /^\d{4}$/) {
-                $inferred_meta{year} = shift @work;
+              my $parsed_year = parse_year_token($work[0]);
+              if (defined $parsed_year) {
+                $inferred_meta{year} = $parsed_year;
+                shift @work;
                 print "CHECKPOINT: 1: YEAR\n" if $checkpoint;
               }
             }
@@ -809,8 +822,10 @@ sub parse_args {
               }
             }
             { # PARSE YEAR BLOCK (after volume extraction)
-              if (!defined $inferred_meta{year} && @work && $work[0] =~ /^\d{4}$/) {
-                $inferred_meta{year} = shift @work;
+              my $parsed_year = @work ? parse_year_token($work[0]) : undef;
+              if (!defined $inferred_meta{year} && defined $parsed_year) {
+                $inferred_meta{year} = $parsed_year;
+                shift @work;
                 print "CHECKPOINT: 1: YEAR\n" if $checkpoint;
               }
             }
@@ -896,6 +911,12 @@ sub parse_args {
             ) {
                 $part = normalize_inferred_part_number($2);
                 $title = $source_name;
+            } elsif (
+                !$as_is_mode
+                && $source_name =~ /^\s*(.+?)\s*[\(\[](\d{4})[\)\]]\s*$/
+            ) {
+                $inferred_meta{year} = $2 if !defined $inferred_meta{year};
+                $title = trim($1);
             }
         }
 
