@@ -63,12 +63,18 @@ my $ok = eval {
 
     if ($is_dir_source) {
         my $dest_dir = build_dir_target_path($book_file, $dir_name);
-        if (-e $dest_dir) {
+        my $source_abs = File::Spec->rel2abs($book_file);
+        my $dest_abs = File::Spec->rel2abs($dest_dir);
+        my $same_dir_target = $source_abs eq $dest_abs;
+
+        if (-e $dest_dir && !$same_dir_target) {
             die "Error: destination '$dest_dir' already exists.\n";
         }
 
-        move($book_file, $dest_dir)
-          or die "Error: failed to move '$book_file' to '$dest_dir': $!\n";
+        if (!$same_dir_target) {
+            move($book_file, $dest_dir)
+              or die "Error: failed to move '$book_file' to '$dest_dir': $!\n";
+        }
 
         maybe_rename_single_audio(
             source_root => $book_file,
