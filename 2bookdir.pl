@@ -20,6 +20,7 @@ my $as_is = 0;
 my $reverse = 0;
 my $show_version = 0;
 my $checkpoint = 0;
+my $has_subtitle = 0;
 GetOptions(
     'help|h'  => \$help,
     'json'    => \$json_output,
@@ -27,6 +28,7 @@ GetOptions(
     'reverse' => \$reverse,
     'version' => \$show_version,
     'checkpoint' => \$checkpoint,
+    'has-subtitle' => \$has_subtitle,
 ) or usage(1);
 
 usage(0) if $help;
@@ -36,15 +38,16 @@ if ($show_version) {
 }
 usage(1) if @ARGV < 1;
 
-my ($summary_title, $summary_volume, $summary_year, $summary_author, $summary_series, $summary_asin, $summary_narrators);
+my ($summary_title, $summary_subtitle, $summary_volume, $summary_year, $summary_author, $summary_series, $summary_asin, $summary_narrators);
 my $ok = eval {
-    my ($book_file, $part_number, $book_title, $inferred_meta) = parse_args($as_is, $reverse, @ARGV);
+    my ($book_file, $part_number, $book_title, $inferred_meta) = parse_args($as_is, $reverse, $has_subtitle, @ARGV);
     my $is_dir_source = -d $book_file;
     my @audio_files = find_audio_files($book_file);
     my $audio_count = scalar @audio_files;
     my $resolved_title = resolve_title($book_file, $book_title);
     my ($resolved_volume, $resolved_year) = resolve_volume_and_year($part_number, $inferred_meta->{year});
     $summary_title = $resolved_title;
+    $summary_subtitle = $inferred_meta->{subtitle};
     $summary_volume = $resolved_volume;
     $summary_year = $resolved_year;
     $summary_author = $inferred_meta->{author};
@@ -85,6 +88,7 @@ my $ok = eval {
             series      => $inferred_meta->{series},
             year        => $inferred_meta->{year},
             asin        => $inferred_meta->{asin},
+            subtitle    => $inferred_meta->{subtitle},
             audio_files => \@audio_files,
         );
         maybe_create_cover_image($dest_dir);
@@ -99,6 +103,7 @@ my $ok = eval {
             author      => $inferred_meta->{author},
             series      => $inferred_meta->{series},
             asin        => $inferred_meta->{asin},
+            subtitle    => $inferred_meta->{subtitle},
             narrators   => $inferred_meta->{narrators},
         );
         return 1;
@@ -128,6 +133,7 @@ my $ok = eval {
             series      => $inferred_meta->{series},
             year        => $inferred_meta->{year},
             asin        => $inferred_meta->{asin},
+            subtitle    => $inferred_meta->{subtitle},
         );
     } elsif ($audio_count == 1 && (is_publishing_year($part_number) || defined $inferred_meta->{year})) {
         tone_set_publishing_date($dest_file, $inferred_meta->{year} // $part_number);
@@ -144,6 +150,7 @@ my $ok = eval {
         author      => $inferred_meta->{author},
         series      => $inferred_meta->{series},
         asin        => $inferred_meta->{asin},
+        subtitle    => $inferred_meta->{subtitle},
         narrators   => $inferred_meta->{narrators},
     );
     return 1;
@@ -156,6 +163,7 @@ if (!$ok) {
         json_output => $json_output,
         error       => $error,
         title       => $summary_title,
+        subtitle    => $summary_subtitle,
         volume      => $summary_volume,
         year        => $summary_year,
         author      => $summary_author,
@@ -224,9 +232,10 @@ sub resolve_volume_and_year {
 }
 
 sub print_summary {
-    my ($title, $volume, $year, $author, $series, $asin, $narrators) = @_;
+    my ($title, $subtitle, $volume, $year, $author, $series, $asin, $narrators) = @_;
 
     print "Title: $title\n";
+    print "Subtitle: $subtitle\n" if defined $subtitle && $subtitle ne '';
     print "Volume: $volume\n" if defined $volume && $volume ne '';
     print "Year: $year\n" if defined $year && $year ne '';
     print "Author: $author\n" if defined $author && $author ne '';
@@ -242,6 +251,7 @@ sub emit_success {
             response => 'success',
             meta => {
                 title  => $args{title},
+                subtitle => $args{subtitle},
                 volume => $args{volume},
                 year   => $args{year},
                 author => $args{author},
@@ -255,7 +265,7 @@ sub emit_success {
 
     print "Created/used directory: $args{created_dir}\n" if defined $args{created_dir};
     print "Moved: $args{moved_from} -> $args{moved_to}\n";
-    print_summary($args{title}, $args{volume}, $args{year}, $args{author}, $args{series}, $args{asin}, $args{narrators});
+    print_summary($args{title}, $args{subtitle}, $args{volume}, $args{year}, $args{author}, $args{series}, $args{asin}, $args{narrators});
 }
 
 sub emit_failure {
@@ -266,6 +276,7 @@ sub emit_failure {
             error    => $args{error},
             meta => {
                 title  => $args{title},
+                subtitle => $args{subtitle},
                 volume => $args{volume},
                 year   => $args{year},
                 author => $args{author},
@@ -374,6 +385,7 @@ sub maybe_rename_single_audio {
         series      => $args{series},
         year        => $args{year},
         asin        => $args{asin},
+        subtitle    => $args{subtitle},
     );
 }
 
@@ -428,12 +440,14 @@ sub tone_set_audio_metadata {
     my $series = $args{series};
     my $year = $args{year};
     my $asin = $args{asin};
+    my $subtitle = $args{subtitle};
     return if !defined $album || $album eq '';
 
     my @tag_cmd = ('tone', 'tag', '--meta-album', $album);
     push @tag_cmd, '--meta-artist', $author if defined $author && $author ne '';
     push @tag_cmd, '--meta-movement-name', $series if defined $series && $series ne '';
     push @tag_cmd, '--meta-additional-field', "AUDIBLE_ASIN=$asin" if defined $asin && $asin ne '';
+    push @tag_cmd, '--meta-subtitle', $subtitle if defined $subtitle && $subtitle ne '';
     if (defined $part_number && $part_number ne '' && !is_publishing_year($part_number)) {
         if ($part_number =~ /^\d+$/ && $part_number >= 0) {
             push @tag_cmd, '--meta-movement', $part_number;
@@ -466,6 +480,27 @@ sub tone_set_audio_metadata {
     }
     if ($dump_out !~ /\Q$album\E/) {
         die "Error: tone album verification failed for '$path': expected '$album', got '$dump_out'";
+    }
+    if (defined $subtitle && $subtitle ne '') {
+        my ($sub_exit, $sub_out, $sub_err) = run_external_cmd(
+            'tone', 'dump', $path, '--format', 'json', '--query', '$.meta.subtitle'
+        );
+        my $sub_combined = lc("$sub_out\n$sub_err");
+        if ($sub_combined =~ /\b(error|failed|panic|exception)\b/) {
+            die "Error: tone subtitle verification failed for '$path': $sub_out$sub_err";
+        }
+        if ($sub_out !~ /\Q$subtitle\E/) {
+            my ($alt_exit, $alt_out, $alt_err) = run_external_cmd(
+                'tone', 'dump', $path, '--format', 'json', '--query', '$.meta.additionalFields.subtitle'
+            );
+            my $alt_combined = lc("$alt_out\n$alt_err");
+            if ($alt_combined =~ /\b(error|failed|panic|exception)\b/) {
+                die "Error: tone subtitle verification failed for '$path': $alt_out$alt_err";
+            }
+            if ($alt_out !~ /\Q$subtitle\E/) {
+                die "Error: tone subtitle mismatch for '$path': expected '$subtitle', got '$sub_out'";
+            }
+        }
     }
 
     if (defined $part_number && $part_number ne '' && !is_publishing_year($part_number)) {
@@ -644,12 +679,14 @@ sub usage {
     my ($exit_code) = @_;
 
     print <<'USAGE';
-Usage: 2bookdir.pl [--help] [--version] [--json] [--as-is] [--reverse] book_file [part-number] [book title]
+Usage: 2bookdir.pl [--help] [--version] [--json] [--as-is] [--reverse] [--has-subtitle] book_file [part-number] [book title]
 
 Arguments:
   book_file     Required. Path to the source book file or directory.
   --reverse     Optional. Reverse title/author position for supported
                 dash-split inference formats.
+  --has-subtitle Optional. For dash-split inference, treat the last segment
+                as subtitle metadata and remove it from title parsing.
   part-number   Optional. Positive numeric value (for example: 2 or 2.1) used
                 to prefix the directory as "Vol. N - ...". If it is a 4-digit
                 year, it is treated as PublishingDate and the directory prefix
@@ -679,7 +716,7 @@ sub build_version {
 }
 
 sub parse_args {
-    my ($as_is_mode, $reverse_mode, @args) = @_;
+    my ($as_is_mode, $reverse_mode, $has_subtitle_mode, @args) = @_;
 
     my ($file, @rest);
     if (-e $args[0]) {
@@ -740,6 +777,18 @@ sub parse_args {
             }
         }
         my @dash_split = map { trim($_) } split /\s-\s/, $source_name;
+
+        { # PARSE SUBTITLE BLOCK
+            if ($has_subtitle_mode && @dash_split >= 2) {
+                $inferred_meta{subtitle} = pop @dash_split;
+                $source_name_modified = 1;
+                print "CHECKPOINT: 1: SUBTITLE\n" if $checkpoint;
+            }
+        }
+
+        if (!defined $title && @dash_split == 1 && defined $inferred_meta{subtitle}) {
+            $title = $dash_split[0];
+        }
 
         if (@dash_split >= 2 && @dash_split <= 4) {
             my @work = @dash_split;

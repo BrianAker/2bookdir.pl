@@ -23,7 +23,7 @@ ok(defined $fixture_m4b && -f $fixture_m4b, 'fixture m4b exists');
 
 my ($exit_help, $out_help, $err_help) = run_cmd('perl', $script, '--help');
 is($exit_help, 0, '--help exits successfully');
-like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--as-is\] \[--reverse\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
+like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--as-is\] \[--reverse\] \[--has-subtitle\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
 is($err_help, '', 'help does not write stderr');
 
 my ($exit_version, $out_version, $err_version) = run_cmd('perl', $script, '--version');
@@ -435,6 +435,18 @@ is($err_numeric_dash_prefix, '', 'numeric dash-prefix directory does not write s
 like($out_numeric_dash_prefix, qr/^Title: Bright Red Line$/m, 'numeric dash-prefix output includes title summary');
 like($out_numeric_dash_prefix, qr/^Volume: 22$/m, 'numeric dash-prefix output includes volume summary');
 unlike($out_numeric_dash_prefix, qr/^Series:/m, 'numeric dash-prefix output does not include series summary');
+
+mkdir 'Wizards First Rule - A Really Good Subtitle' or die "failed to create fixture dir 'Wizards First Rule - A Really Good Subtitle': $!";
+copy_single_audio_fixture('m4b', File::Spec->catfile('Wizards First Rule - A Really Good Subtitle', 'book.m4b'));
+my ($exit_has_subtitle, $out_has_subtitle, $err_has_subtitle) = run_cmd('perl', $script, '--has-subtitle', 'Wizards First Rule - A Really Good Subtitle');
+is($exit_has_subtitle, 0, '--has-subtitle with dashed input succeeds');
+ok(-d 'Wizards First Rule', '--has-subtitle strips subtitle segment for inferred title');
+ok(!-d 'Wizards First Rule - A Really Good Subtitle', '--has-subtitle source directory no longer exists after rename');
+ok(-f File::Spec->catfile('Wizards First Rule', 'Wizards First Rule.m4b'), '--has-subtitle single audio file is renamed to inferred title');
+is(tone_meta(File::Spec->catfile('Wizards First Rule', 'Wizards First Rule.m4b'), '$.meta.additionalFields.subtitle'), 'A Really Good Subtitle', '--has-subtitle updates tone subtitle metadata');
+is($err_has_subtitle, '', '--has-subtitle case does not write stderr');
+like($out_has_subtitle, qr/^Title: Wizards First Rule$/m, '--has-subtitle output includes stripped title summary');
+like($out_has_subtitle, qr/^Subtitle: A Really Good Subtitle$/m, '--has-subtitle output includes subtitle summary');
 
 mkdir '02.5 - Dog God' or die "failed to create fixture dir '02.5 - Dog God': $!";
 copy_single_audio_fixture('m4b', File::Spec->catfile('02.5 - Dog God', 'book.m4b'));
