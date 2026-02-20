@@ -480,6 +480,30 @@ like($out_wrapped_year_suffix, qr/^Year: 1994$/m, 'bracketed year suffix output 
 
 remove_tree('1994 - Wizards First Rule');
 
+mkdir '1994 - Volume 1. Wizards First Rule {Sam Tsoutsouvas}'
+  or die "failed to create fixture dir '1994 - Volume 1. Wizards First Rule {Sam Tsoutsouvas}': $!";
+copy_single_audio_fixture(
+    'm4b',
+    File::Spec->catfile('1994 - Volume 1. Wizards First Rule {Sam Tsoutsouvas}', 'book.m4b')
+);
+remove_tree('Vol. 1 - Wizards First Rule');
+my ($exit_year_volume_dotted, $out_year_volume_dotted, $err_year_volume_dotted) = run_cmd(
+    'perl',
+    $script,
+    '1994 - Volume 1. Wizards First Rule {Sam Tsoutsouvas}'
+);
+is($exit_year_volume_dotted, 0, 'year + dotted volume/title segment with narrator succeeds');
+ok(-d 'Vol. 1 - Wizards First Rule', 'year + dotted volume/title creates expected volume directory');
+ok(!-d '1994 - Volume 1. Wizards First Rule {Sam Tsoutsouvas}', 'year + dotted volume/title source directory no longer exists after rename');
+ok(-f File::Spec->catfile('Vol. 1 - Wizards First Rule', 'Wizards First Rule.m4b'), 'year + dotted volume/title renames single audio file to inferred title');
+is($err_year_volume_dotted, '', 'year + dotted volume/title does not write stderr');
+like($out_year_volume_dotted, qr/^Title: Wizards First Rule$/m, 'year + dotted volume/title output includes title summary');
+like($out_year_volume_dotted, qr/^Volume: 1$/m, 'year + dotted volume/title output includes volume summary');
+like($out_year_volume_dotted, qr/^Year: 1994$/m, 'year + dotted volume/title output includes year summary');
+like($out_year_volume_dotted, qr/^Narrators: Sam Tsoutsouvas$/m, 'year + dotted volume/title output includes narrators summary');
+
+remove_tree('Vol. 1 - Wizards First Rule');
+
 mkdir 'Vol. 1 - 1994 - Wizards First Rule - A Really Good Subtitle {Sam Tsoutsouvas}'
   or die "failed to create fixture dir 'Vol. 1 - 1994 - Wizards First Rule - A Really Good Subtitle {Sam Tsoutsouvas}': $!";
 copy_single_audio_fixture(

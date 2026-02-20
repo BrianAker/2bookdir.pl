@@ -813,10 +813,14 @@ sub parse_args {
             }
             { # PARSE VOLUME BLOCK
               for (my $i = 0; $i < @work; $i++) {
-                my $volume = parse_volume_segment($work[$i]);
+                my ($volume, $remaining_title) = parse_volume_segment($work[$i]);
                 next if !defined $volume;
                 $part = $volume if !defined $part;
-                splice @work, $i, 1;
+                if (defined $remaining_title && $remaining_title ne '') {
+                    $work[$i] = $remaining_title;
+                } else {
+                    splice @work, $i, 1;
+                }
                 print "CHECKPOINT: 2: VOLUME\n" if $checkpoint;
                 last;
               }
@@ -965,13 +969,16 @@ sub extract_series_and_volume {
 sub parse_volume_segment {
     my ($value) = @_;
     my $clean = trim($value);
-    return undef if $clean eq '';
+    return (undef, undef) if $clean eq '';
 
     if ($clean =~ /^(?:Volume|Vol\.?|Book)\s+(\d+)$/i) {
-        return normalize_inferred_part_number($1);
+        return (normalize_inferred_part_number($1), undef);
+    }
+    if ($clean =~ /^(?:Volume|Vol\.?|Book)\s+(\d+)\.\s+(.+)$/i) {
+        return (normalize_inferred_part_number($1), trim($2));
     }
 
-    return undef;
+    return (undef, undef);
 }
 
 sub infer_suffix_volume_number {
