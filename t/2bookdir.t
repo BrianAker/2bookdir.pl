@@ -302,16 +302,17 @@ like($out_dash_two_suffix_vol05, qr/^Title: Lama Lama Lama Mine, Vol 05$/m, 'two
 like($out_dash_two_suffix_vol05, qr/^Volume: 5$/m, 'two-part dashed "Vol 05" output includes volume summary');
 like($out_dash_two_suffix_vol05, qr/^Author: Logo$/m, 'two-part dashed "Vol 05" output includes author summary');
 
-copy_single_audio_fixture('mp3', 'Logo - Lama Lama Lama Mine, Vol 06.mp3');
-my ($exit_dash_two_file_suffix_vol06, $out_dash_two_file_suffix_vol06, $err_dash_two_file_suffix_vol06) = run_cmd('perl', $script, 'Logo - Lama Lama Lama Mine, Vol 06.mp3');
-is($exit_dash_two_file_suffix_vol06, 0, 'two-part dashed file with "Vol 06" title suffix infers volume and author');
-ok(-d 'Vol. 6 - Lama Lama Lama Mine, Vol 06', 'two-part dashed file "Vol 06" creates expected volume directory');
-ok(-f File::Spec->catfile('Vol. 6 - Lama Lama Lama Mine, Vol 06', 'Lama Lama Lama Mine, Vol 06.mp3'), 'single file is renamed to inferred title for file "Vol 06" case');
-is($err_dash_two_file_suffix_vol06, '', 'two-part dashed file "Vol 06" writes no stderr');
-like($out_dash_two_file_suffix_vol06, qr/^Moved: Logo - Lama Lama Lama Mine, Vol 06\.mp3 -> Vol\. 6 - Lama Lama Lama Mine, Vol 06\/Lama Lama Lama Mine, Vol 06\.mp3$/m, 'two-part dashed file "Vol 06" output includes expected move line');
-like($out_dash_two_file_suffix_vol06, qr/^Title: Lama Lama Lama Mine, Vol 06$/m, 'two-part dashed file "Vol 06" output includes title summary');
-like($out_dash_two_file_suffix_vol06, qr/^Volume: 6$/m, 'two-part dashed file "Vol 06" output includes volume summary');
-like($out_dash_two_file_suffix_vol06, qr/^Author: Logo$/m, 'two-part dashed file "Vol 06" output includes author summary');
+remove_tree('Vol. 5 - Lama Lama Lama Mine, Vol 05');
+copy_single_audio_fixture('mp3', 'Logo - Lama Lama Lama Mine, Vol 05.mp3');
+my ($exit_dash_two_file_suffix_vol05, $out_dash_two_file_suffix_vol05, $err_dash_two_file_suffix_vol05) = run_cmd('perl', $script, 'Logo - Lama Lama Lama Mine, Vol 05.mp3');
+is($exit_dash_two_file_suffix_vol05, 0, 'two-part dashed file with "Vol 05" title suffix infers volume and author');
+ok(-d 'Vol. 5 - Lama Lama Lama Mine, Vol 05', 'two-part dashed file "Vol 05" creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 5 - Lama Lama Lama Mine, Vol 05', 'Lama Lama Lama Mine, Vol 05.mp3'), 'single file is renamed to inferred title for file "Vol 05" case');
+is($err_dash_two_file_suffix_vol05, '', 'two-part dashed file "Vol 05" writes no stderr');
+like($out_dash_two_file_suffix_vol05, qr/^Moved: Logo - Lama Lama Lama Mine, Vol 05\.mp3 -> Vol\. 5 - Lama Lama Lama Mine, Vol 05\/Lama Lama Lama Mine, Vol 05\.mp3$/m, 'two-part dashed file "Vol 05" output includes expected move line');
+like($out_dash_two_file_suffix_vol05, qr/^Title: Lama Lama Lama Mine, Vol 05$/m, 'two-part dashed file "Vol 05" output includes title summary');
+like($out_dash_two_file_suffix_vol05, qr/^Volume: 5$/m, 'two-part dashed file "Vol 05" output includes volume summary');
+like($out_dash_two_file_suffix_vol05, qr/^Author: Logo$/m, 'two-part dashed file "Vol 05" output includes author summary');
 
 copy_single_audio_fixture('mp3', 'Jane Roe - Vol. 5 - Silver Dog.mp3');
 my ($exit_dash_vol_token, $out_dash_vol_token, $err_dash_vol_token) = run_cmd('perl', $script, 'Jane Roe - Vol. 5 - Silver Dog.mp3');
@@ -433,9 +434,22 @@ my ($exit_dir_source, $out_dir_source, $err_dir_source) = run_cmd('perl', $scrip
 is($exit_dir_source, 0, 'directory source with part succeeds');
 ok(-d 'Vol. 4 - Bundle', 'volume directory for directory source is created');
 ok(!-d 'Bundle', 'source directory no longer exists after rename');
-ok(-f File::Spec->catfile('Vol. 4 - Bundle', 'track01.mp3'), 'directory contents are preserved after rename');
+ok(-f File::Spec->catfile('Vol. 4 - Bundle', 'Bundle.mp3'), 'single directory audio file is renamed to resolved title');
 is($err_dir_source, '', 'directory source with part does not write stderr');
 like($out_dir_source, qr/^Moved: Bundle -> Vol\. 4 - Bundle$/m, 'directory source output includes destination');
+
+mkdir 'The Fool (US Version)' or die "failed to create fixture dir 'The Fool (US Version)': $!";
+copy_single_audio_fixture('m4b', File::Spec->catfile('The Fool (US Version)', 'The Fool [US Version].m4b'));
+my ($exit_dir_bracket_normalize, $out_dir_bracket_normalize, $err_dir_bracket_normalize) = run_cmd('perl', $script, 'The Fool (US Version)', '2');
+is($exit_dir_bracket_normalize, 0, 'directory source with bracket/paren title normalization succeeds');
+ok(-d 'Vol. 2 - The Fool (US Version)', 'directory source with bracket/paren normalization creates expected volume directory');
+ok(!-d 'The Fool (US Version)', 'directory source with bracket/paren normalization renames source directory');
+ok(-f File::Spec->catfile('Vol. 2 - The Fool (US Version)', 'The Fool (US Version).m4b'), 'single audio file is renamed to directory title with parentheses');
+ok(!-f File::Spec->catfile('Vol. 2 - The Fool (US Version)', 'The Fool [US Version].m4b'), 'single audio file with square brackets is replaced by parentheses form');
+is($err_dir_bracket_normalize, '', 'directory source with bracket/paren normalization does not write stderr');
+like($out_dir_bracket_normalize, qr/^Moved: The Fool \(US Version\) -> Vol\. 2 - The Fool \(US Version\)$/m, 'directory source with bracket/paren normalization output includes destination');
+like($out_dir_bracket_normalize, qr/^Title: The Fool \(US Version\)$/m, 'directory source with bracket/paren normalization output includes title summary');
+like($out_dir_bracket_normalize, qr/^Volume: 2$/m, 'directory source with bracket/paren normalization output includes volume summary');
 
 mkdir 'Pack' or die "failed to create fixture dir 'Pack': $!";
 copy_single_audio_fixture('mp3', File::Spec->catfile('Pack', 'track01.mp3'));

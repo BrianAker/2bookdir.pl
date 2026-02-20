@@ -73,7 +73,7 @@ my $ok = eval {
         maybe_rename_single_audio(
             source_root => $book_file,
             dest_root   => $dest_dir,
-            title       => $book_title,
+            title       => $resolved_title,
             part_number => $part_number,
             author      => $inferred_meta->{author},
             series      => $inferred_meta->{series},
