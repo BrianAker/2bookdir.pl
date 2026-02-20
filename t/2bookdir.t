@@ -448,6 +448,45 @@ is($err_has_subtitle, '', '--has-subtitle case does not write stderr');
 like($out_has_subtitle, qr/^Title: Wizards First Rule$/m, '--has-subtitle output includes stripped title summary');
 like($out_has_subtitle, qr/^Subtitle: A Really Good Subtitle$/m, '--has-subtitle output includes subtitle summary');
 
+mkdir '1994 - Book 1 - Wizards First Rule' or die "failed to create fixture dir '1994 - Book 1 - Wizards First Rule': $!";
+my ($exit_year_volume_token, $out_year_volume_token, $err_year_volume_token) = run_cmd('perl', $script, '1994 - Book 1 - Wizards First Rule');
+is($exit_year_volume_token, 0, 'year + volume-token dashed directory infers title/volume/year');
+ok(-d 'Vol. 1 - Wizards First Rule', 'year + volume-token dashed directory is renamed with inferred volume and title');
+ok(!-d '1994 - Book 1 - Wizards First Rule', 'year + volume-token dashed source directory no longer exists after rename');
+is($err_year_volume_token, '', 'year + volume-token dashed directory does not write stderr');
+like($out_year_volume_token, qr/^Moved: 1994 - Book 1 - Wizards First Rule -> Vol\. 1 - Wizards First Rule$/m, 'year + volume-token dashed output includes expected move line');
+like($out_year_volume_token, qr/^Title: Wizards First Rule$/m, 'year + volume-token dashed output includes title summary');
+like($out_year_volume_token, qr/^Volume: 1$/m, 'year + volume-token dashed output includes volume summary');
+like($out_year_volume_token, qr/^Year: 1994$/m, 'year + volume-token dashed output includes year summary');
+
+mkdir 'Vol. 1 - 1994 - Wizards First Rule - A Really Good Subtitle {Sam Tsoutsouvas}'
+  or die "failed to create fixture dir 'Vol. 1 - 1994 - Wizards First Rule - A Really Good Subtitle {Sam Tsoutsouvas}': $!";
+copy_single_audio_fixture(
+    'm4b',
+    File::Spec->catfile(
+        'Vol. 1 - 1994 - Wizards First Rule - A Really Good Subtitle {Sam Tsoutsouvas}',
+        'book.m4b'
+    )
+);
+remove_tree('Vol. 1 - Wizards First Rule');
+my ($exit_has_subtitle_complex, $out_has_subtitle_complex, $err_has_subtitle_complex) = run_cmd(
+    'perl',
+    $script,
+    '--has-subtitle',
+    'Vol. 1 - 1994 - Wizards First Rule - A Really Good Subtitle {Sam Tsoutsouvas}'
+);
+is($exit_has_subtitle_complex, 0, '--has-subtitle complex dashed input with narrator succeeds');
+ok(-d 'Vol. 1 - Wizards First Rule', '--has-subtitle complex input creates expected volume directory');
+ok(!-d 'Vol. 1 - 1994 - Wizards First Rule - A Really Good Subtitle {Sam Tsoutsouvas}', '--has-subtitle complex source directory no longer exists after rename');
+ok(-f File::Spec->catfile('Vol. 1 - Wizards First Rule', 'Wizards First Rule.m4b'), '--has-subtitle complex input renames single audio file to inferred title');
+is(tone_meta(File::Spec->catfile('Vol. 1 - Wizards First Rule', 'Wizards First Rule.m4b'), '$.meta.additionalFields.subtitle'), 'A Really Good Subtitle', '--has-subtitle complex input updates tone subtitle metadata');
+is($err_has_subtitle_complex, '', '--has-subtitle complex input does not write stderr');
+like($out_has_subtitle_complex, qr/^Title: Wizards First Rule$/m, '--has-subtitle complex output includes title summary');
+like($out_has_subtitle_complex, qr/^Subtitle: A Really Good Subtitle$/m, '--has-subtitle complex output includes subtitle summary');
+like($out_has_subtitle_complex, qr/^Volume: 1$/m, '--has-subtitle complex output includes volume summary');
+like($out_has_subtitle_complex, qr/^Year: 1994$/m, '--has-subtitle complex output includes year summary');
+like($out_has_subtitle_complex, qr/^Narrators: Sam Tsoutsouvas$/m, '--has-subtitle complex output includes narrators summary');
+
 mkdir '02.5 - Dog God' or die "failed to create fixture dir '02.5 - Dog God': $!";
 copy_single_audio_fixture('m4b', File::Spec->catfile('02.5 - Dog God', 'book.m4b'));
 write_file(File::Spec->catfile('02.5 - Dog God', 'cover.jpg'), 'cover-image');

@@ -808,6 +808,12 @@ sub parse_args {
                 last;
               }
             }
+            { # PARSE YEAR BLOCK (after volume extraction)
+              if (!defined $inferred_meta{year} && @work && $work[0] =~ /^\d{4}$/) {
+                $inferred_meta{year} = shift @work;
+                print "CHECKPOINT: 1: YEAR\n" if $checkpoint;
+              }
+            }
 
             if (@work == 3) {
                 if ($reverse_mode) {
