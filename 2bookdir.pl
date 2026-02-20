@@ -735,8 +735,8 @@ sub parse_args {
                 $inferred_meta{series} = $first_pass;
                 $title = $work[2];
                 $part = $series_volume if defined $series_volume;
-            } elsif (@work == 1 && defined $inferred_meta{year}) {
-                # Handle "YEAR - TITLE" without treating YEAR as volume.
+            } elsif (@work == 1) {
+                # Handle cases where year and/or volume tokens were removed and one title remains.
                 $title = $work[0];
             } elsif (@work == 2) {
                 my $candidate;

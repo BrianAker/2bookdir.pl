@@ -438,6 +438,22 @@ ok(-f File::Spec->catfile('Vol. 4 - Bundle', 'Bundle.mp3'), 'single directory au
 is($err_dir_source, '', 'directory source with part does not write stderr');
 like($out_dir_source, qr/^Moved: Bundle -> Vol\. 4 - Bundle$/m, 'directory source output includes destination');
 
+remove_tree('Vol. 4 - Bundle');
+remove_tree('Vol. 04 - Bundle');
+mkdir 'Vol. 04 - Bundle' or die "failed to create fixture dir 'Vol. 04 - Bundle': $!";
+copy_audio_fixture('mp3', File::Spec->catfile('Vol. 04 - Bundle', 'track01.mp3'));
+copy_audio_fixture('mp3', File::Spec->catfile('Vol. 04 - Bundle', 'track02.mp3'));
+my ($exit_dir_inferred_vol_prefix, $out_dir_inferred_vol_prefix, $err_dir_inferred_vol_prefix) = run_cmd('perl', $script, 'Vol. 04 - Bundle');
+is($exit_dir_inferred_vol_prefix, 0, 'directory source with "Vol. 04 - Title" infers volume and title');
+ok(-d 'Vol. 4 - Bundle', 'directory source with inferred volume prefix creates expected directory');
+ok(!-d 'Vol. 04 - Bundle', 'directory source with inferred volume prefix source directory is renamed');
+ok(-f File::Spec->catfile('Vol. 4 - Bundle', 'track01.mp3'), 'multi-audio file 1 preserved for inferred volume prefix case');
+ok(-f File::Spec->catfile('Vol. 4 - Bundle', 'track02.mp3'), 'multi-audio file 2 preserved for inferred volume prefix case');
+is($err_dir_inferred_vol_prefix, '', 'directory source with inferred volume prefix does not write stderr');
+like($out_dir_inferred_vol_prefix, qr/^Moved: Vol\. 04 - Bundle -> Vol\. 4 - Bundle$/m, 'directory source with inferred volume prefix output includes expected move line');
+like($out_dir_inferred_vol_prefix, qr/^Title: Bundle$/m, 'directory source with inferred volume prefix output includes title summary');
+like($out_dir_inferred_vol_prefix, qr/^Volume: 4$/m, 'directory source with inferred volume prefix output includes volume summary');
+
 mkdir 'The Fool (US Version)' or die "failed to create fixture dir 'The Fool (US Version)': $!";
 copy_single_audio_fixture('m4b', File::Spec->catfile('The Fool (US Version)', 'The Fool [US Version].m4b'));
 my ($exit_dir_bracket_normalize, $out_dir_bracket_normalize, $err_dir_bracket_normalize) = run_cmd('perl', $script, 'The Fool (US Version)', '2');
