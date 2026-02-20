@@ -289,6 +289,30 @@ like($out_dash_two_suffix_number, qr/^Title: Agast of the Catbeing 2$/m, 'two-pa
 like($out_dash_two_suffix_number, qr/^Volume: 2$/m, 'two-part dashed directory output includes volume summary');
 like($out_dash_two_suffix_number, qr/^Author: Babba$/m, 'two-part dashed directory output includes author summary');
 
+mkdir 'Logo - Lama Lama Lama Mine, Vol 05' or die "failed to create fixture dir 'Logo - Lama Lama Lama Mine, Vol 05': $!";
+copy_single_audio_fixture('mp3', File::Spec->catfile('Logo - Lama Lama Lama Mine, Vol 05', 'book.mp3'));
+my ($exit_dash_two_suffix_vol05, $out_dash_two_suffix_vol05, $err_dash_two_suffix_vol05) = run_cmd('perl', $script, 'Logo - Lama Lama Lama Mine, Vol 05');
+is($exit_dash_two_suffix_vol05, 0, 'two-part dashed directory with "Vol 05" title suffix infers volume and author');
+ok(-d 'Vol. 5 - Lama Lama Lama Mine, Vol 05', 'two-part dashed "Vol 05" creates expected volume directory');
+ok(!-d 'Logo - Lama Lama Lama Mine, Vol 05', 'two-part dashed "Vol 05" source directory is renamed');
+ok(-f File::Spec->catfile('Vol. 5 - Lama Lama Lama Mine, Vol 05', 'Lama Lama Lama Mine, Vol 05.mp3'), 'single audio is renamed to inferred title for "Vol 05" case');
+is($err_dash_two_suffix_vol05, '', 'two-part dashed "Vol 05" writes no stderr');
+like($out_dash_two_suffix_vol05, qr/^Moved: Logo - Lama Lama Lama Mine, Vol 05 -> Vol\. 5 - Lama Lama Lama Mine, Vol 05$/m, 'two-part dashed "Vol 05" output includes expected move line');
+like($out_dash_two_suffix_vol05, qr/^Title: Lama Lama Lama Mine, Vol 05$/m, 'two-part dashed "Vol 05" output includes title summary');
+like($out_dash_two_suffix_vol05, qr/^Volume: 5$/m, 'two-part dashed "Vol 05" output includes volume summary');
+like($out_dash_two_suffix_vol05, qr/^Author: Logo$/m, 'two-part dashed "Vol 05" output includes author summary');
+
+copy_single_audio_fixture('mp3', 'Logo - Lama Lama Lama Mine, Vol 06.mp3');
+my ($exit_dash_two_file_suffix_vol06, $out_dash_two_file_suffix_vol06, $err_dash_two_file_suffix_vol06) = run_cmd('perl', $script, 'Logo - Lama Lama Lama Mine, Vol 06.mp3');
+is($exit_dash_two_file_suffix_vol06, 0, 'two-part dashed file with "Vol 06" title suffix infers volume and author');
+ok(-d 'Vol. 6 - Lama Lama Lama Mine, Vol 06', 'two-part dashed file "Vol 06" creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 6 - Lama Lama Lama Mine, Vol 06', 'Lama Lama Lama Mine, Vol 06.mp3'), 'single file is renamed to inferred title for file "Vol 06" case');
+is($err_dash_two_file_suffix_vol06, '', 'two-part dashed file "Vol 06" writes no stderr');
+like($out_dash_two_file_suffix_vol06, qr/^Moved: Logo - Lama Lama Lama Mine, Vol 06\.mp3 -> Vol\. 6 - Lama Lama Lama Mine, Vol 06\/Lama Lama Lama Mine, Vol 06\.mp3$/m, 'two-part dashed file "Vol 06" output includes expected move line');
+like($out_dash_two_file_suffix_vol06, qr/^Title: Lama Lama Lama Mine, Vol 06$/m, 'two-part dashed file "Vol 06" output includes title summary');
+like($out_dash_two_file_suffix_vol06, qr/^Volume: 6$/m, 'two-part dashed file "Vol 06" output includes volume summary');
+like($out_dash_two_file_suffix_vol06, qr/^Author: Logo$/m, 'two-part dashed file "Vol 06" output includes author summary');
+
 copy_single_audio_fixture('mp3', 'Jane Roe - Vol. 5 - Silver Dog.mp3');
 my ($exit_dash_vol_token, $out_dash_vol_token, $err_dash_vol_token) = run_cmd('perl', $script, 'Jane Roe - Vol. 5 - Silver Dog.mp3');
 is($exit_dash_vol_token, 0, 'dash-split volume token "Vol. X" is extracted before parsing');
