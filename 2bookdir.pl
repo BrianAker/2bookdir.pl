@@ -709,14 +709,24 @@ sub parse_args {
     # infer part-number and title from the source name.
     if (!defined $part && !defined $title) {
         my $source_name = basename($file);
+        my $source_name_modified = 0;
         if (-f $file) {
             $source_name =~ s/\.[^.]+\z//;
+        }
+        { # PARSE UNABRIDGED BLOCK
+            if ($source_name =~ /\(UNABRIDGED\)\s*$/i) {
+                $source_name =~ s/\s*\(UNABRIDGED\)\s*$//i;
+                $source_name = trim($source_name);
+                $source_name_modified = 1;
+                print "CHECKPOINT: 1: UNABRIDGED\n";
+            }
         }
         { # PARSE ASIN BLOCK
             if ($source_name =~ /\[([B0][A-Z0-9]{9})\]\s*$/) {
                 $inferred_meta{asin} = $1;
                 $source_name =~ s/\s*\[[B0][A-Z0-9]{9}\]\s*$//;
                 $source_name = trim($source_name);
+                $source_name_modified = 1;
                 print "CHECKPOINT: 1: ASIN\n" if $checkpoint;
             }
         }
@@ -725,6 +735,7 @@ sub parse_args {
                 $inferred_meta{narrators} = trim($1);
                 $source_name =~ s/\s*\{[^{}]+\}\s*$//;
                 $source_name = trim($source_name);
+                $source_name_modified = 1;
                 print "CHECKPOINT: 1: NARRATOR\n" if $checkpoint;
             }
         }
@@ -827,6 +838,10 @@ sub parse_args {
                 $part = normalize_inferred_part_number($2);
                 $title = $source_name;
             }
+        }
+
+        if (!defined $title && $source_name_modified) {
+            $title = $source_name;
         }
     }
 

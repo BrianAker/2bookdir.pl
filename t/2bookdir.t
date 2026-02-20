@@ -132,6 +132,17 @@ is(tone_meta(File::Spec->catfile('Vol. 2.1 - My Part', 'My Part.m4b'), '$.meta.m
 is($err_spaced_title_decimal, '', 'decimal title case does not write stderr');
 like($out_spaced_title_decimal, qr/^Moved: Frog God\.m4b -> Vol\. 2\.1 - My Part\/My Part\.m4b$/m, 'decimal title case output includes destination');
 
+copy_single_audio_fixture('m4b', 'Lucky Biggerwolf for Doom (Unabridged).m4b');
+my ($exit_unabridged_file, $out_unabridged_file, $err_unabridged_file) = run_cmd('perl', $script, 'Lucky Biggerwolf for Doom (Unabridged).m4b');
+is($exit_unabridged_file, 0, 'single unabridged file infers title without unabridged suffix');
+ok(-d 'Lucky Biggerwolf for Doom', 'unabridged file creates directory from stripped title');
+ok(-f File::Spec->catfile('Lucky Biggerwolf for Doom', 'Lucky Biggerwolf for Doom.m4b'), 'unabridged single audio file is renamed to stripped title');
+ok(!-f File::Spec->catfile('Lucky Biggerwolf for Doom', 'Lucky Biggerwolf for Doom (Unabridged).m4b'), 'unabridged source filename is not kept after title rename');
+is(tone_album(File::Spec->catfile('Lucky Biggerwolf for Doom', 'Lucky Biggerwolf for Doom.m4b')), 'Lucky Biggerwolf for Doom', 'unabridged single audio file album metadata is updated to stripped title');
+is($err_unabridged_file, '', 'unabridged file case does not write stderr');
+like($out_unabridged_file, qr/^Moved: Lucky Biggerwolf for Doom \(Unabridged\)\.m4b -> Lucky Biggerwolf for Doom\/Lucky Biggerwolf for Doom\.m4b$/m, 'unabridged file output includes expected destination');
+like($out_unabridged_file, qr/^Title: Lucky Biggerwolf for Doom$/m, 'unabridged file output includes stripped title summary');
+
 mkdir 'Dog God' or die "failed to create fixture dir 'Dog God': $!";
 copy_single_audio_fixture('mp3', File::Spec->catfile('Dog God', 'Dog God.mp3'));
 my ($exit_subdir_part, $out_subdir_part, $err_subdir_part) = run_cmd('perl', $script, File::Spec->catfile('Dog God', 'Dog God.mp3'), '1');
