@@ -426,6 +426,16 @@ ok(-f File::Spec->catfile('Vol. 2 - Dog God', 'Dog God.mp3'), 'single audio file
 is($err_inferred_prefix, '', 'inferred part/title directory move does not write stderr');
 like($out_inferred_prefix, qr/^Moved: 02 - Dog God -> Vol\. 2 - Dog God$/m, 'inferred part/title output includes destination');
 
+mkdir '22 - Bright Red Line' or die "failed to create fixture dir '22 - Bright Red Line': $!";
+my ($exit_numeric_dash_prefix, $out_numeric_dash_prefix, $err_numeric_dash_prefix) = run_cmd('perl', $script, '22 - Bright Red Line');
+is($exit_numeric_dash_prefix, 0, 'numeric dash-prefix directory infers title and volume');
+ok(-d 'Vol. 22 - Bright Red Line', 'numeric dash-prefix directory is renamed with inferred volume');
+ok(!-d '22 - Bright Red Line', 'numeric dash-prefix source directory no longer exists after rename');
+is($err_numeric_dash_prefix, '', 'numeric dash-prefix directory does not write stderr');
+like($out_numeric_dash_prefix, qr/^Title: Bright Red Line$/m, 'numeric dash-prefix output includes title summary');
+like($out_numeric_dash_prefix, qr/^Volume: 22$/m, 'numeric dash-prefix output includes volume summary');
+unlike($out_numeric_dash_prefix, qr/^Series:/m, 'numeric dash-prefix output does not include series summary');
+
 mkdir '02.5 - Dog God' or die "failed to create fixture dir '02.5 - Dog God': $!";
 copy_single_audio_fixture('m4b', File::Spec->catfile('02.5 - Dog God', 'book.m4b'));
 write_file(File::Spec->catfile('02.5 - Dog God', 'cover.jpg'), 'cover-image');

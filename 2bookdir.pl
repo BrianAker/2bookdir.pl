@@ -781,12 +781,16 @@ sub parse_args {
                     $title = $work[1];
                     $candidate = $work[0];
                 }
-                my ($first_pass, $series_volume, $has_series_volume) = extract_series_and_volume($candidate);
-                if ($has_series_volume) {
-                    $inferred_meta{series} = $first_pass;
-                    $part = $series_volume if defined $series_volume;
+                if (!defined $part && $candidate =~ /^\d+(?:\.\d+)*$/) {
+                    $part = normalize_inferred_part_number($candidate);
                 } else {
-                    $inferred_meta{author} = $candidate;
+                    my ($first_pass, $series_volume, $has_series_volume) = extract_series_and_volume($candidate);
+                    if ($has_series_volume) {
+                        $inferred_meta{series} = $first_pass;
+                        $part = $series_volume if defined $series_volume;
+                    } else {
+                        $inferred_meta{author} = $candidate;
+                    }
                 }
                 if (!defined $part && defined $title) {
                     my $suffix_part = infer_suffix_volume_number($title);
