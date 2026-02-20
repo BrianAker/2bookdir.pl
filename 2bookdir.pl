@@ -754,6 +754,10 @@ sub parse_args {
                 } else {
                     $inferred_meta{author} = $candidate;
                 }
+                if (!defined $part && defined $title) {
+                    my $suffix_part = infer_suffix_volume_number($title);
+                    $part = $suffix_part if defined $suffix_part;
+                }
             }
         }
 
@@ -847,6 +851,23 @@ sub parse_volume_segment {
 
     if ($clean =~ /^(?:Volume|Vol\.?|Book)\s+(\d+)$/i) {
         return normalize_inferred_part_number($1);
+    }
+
+    return undef;
+}
+
+sub infer_suffix_volume_number {
+    my ($name) = @_;
+    return undef if !defined $name;
+
+    if ($name =~ /^\s*(.+?)\s+Volume\s+(\d+)\s*$/i) {
+        return normalize_inferred_part_number($2);
+    } elsif ($name =~ /^\s*(.+?)\s+Vol\.?\s+(\d+)\s*$/i) {
+        return normalize_inferred_part_number($2);
+    } elsif ($name =~ /^\s*(.+?)\s+Book\s+(\d+)\s*$/i) {
+        return normalize_inferred_part_number($2);
+    } elsif ($name =~ /^\s*(.+?)\s+(\d+)\s*$/) {
+        return normalize_inferred_part_number($2);
     }
 
     return undef;

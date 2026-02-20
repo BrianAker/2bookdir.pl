@@ -276,6 +276,19 @@ like($out_dash_three_named, qr/^Volume: 4$/m, 'three-part dashed named input pri
 like($out_dash_three_named, qr/^Author: Oh My Gid$/m, 'three-part dashed named input prints author summary');
 like($out_dash_three_named, qr/^Series: Blue Doug$/m, 'three-part dashed named input prints series summary');
 
+mkdir 'Babba - Agast of the Catbeing 2' or die "failed to create fixture dir 'Babba - Agast of the Catbeing 2': $!";
+copy_single_audio_fixture('mp3', File::Spec->catfile('Babba - Agast of the Catbeing 2', 'book.mp3'));
+my ($exit_dash_two_suffix_number, $out_dash_two_suffix_number, $err_dash_two_suffix_number) = run_cmd('perl', $script, 'Babba - Agast of the Catbeing 2');
+is($exit_dash_two_suffix_number, 0, 'two-part dashed directory with numeric title suffix infers volume and author');
+ok(-d 'Vol. 2 - Agast of the Catbeing 2', 'two-part dashed directory with numeric title suffix creates expected volume directory');
+ok(!-d 'Babba - Agast of the Catbeing 2', 'two-part dashed source directory is renamed');
+ok(-f File::Spec->catfile('Vol. 2 - Agast of the Catbeing 2', 'Agast of the Catbeing 2.mp3'), 'single audio is renamed to inferred title');
+is($err_dash_two_suffix_number, '', 'two-part dashed directory with numeric title suffix writes no stderr');
+like($out_dash_two_suffix_number, qr/^Moved: Babba - Agast of the Catbeing 2 -> Vol\. 2 - Agast of the Catbeing 2$/m, 'two-part dashed directory output includes expected move line');
+like($out_dash_two_suffix_number, qr/^Title: Agast of the Catbeing 2$/m, 'two-part dashed directory output includes title summary');
+like($out_dash_two_suffix_number, qr/^Volume: 2$/m, 'two-part dashed directory output includes volume summary');
+like($out_dash_two_suffix_number, qr/^Author: Babba$/m, 'two-part dashed directory output includes author summary');
+
 copy_single_audio_fixture('mp3', 'Jane Roe - Vol. 5 - Silver Dog.mp3');
 my ($exit_dash_vol_token, $out_dash_vol_token, $err_dash_vol_token) = run_cmd('perl', $script, 'Jane Roe - Vol. 5 - Silver Dog.mp3');
 is($exit_dash_vol_token, 0, 'dash-split volume token "Vol. X" is extracted before parsing');
