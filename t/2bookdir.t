@@ -554,6 +554,38 @@ like($out_inline_subtitle, qr/^Title: So You Want to Breed Dogs!$/m, 'inline sub
 like($out_inline_subtitle, qr/^Subtitle: Lessons from the Lab to the shit-zu$/m, 'inline subtitle marker output includes parsed subtitle');
 like($out_inline_subtitle, qr/^Year: 2024$/m, 'inline subtitle marker output includes year summary');
 
+mkdir 'Dog Lift Campe 4 - An Doggone Fashion Tale'
+  or die "failed to create fixture dir 'Dog Lift Campe 4 - An Doggone Fashion Tale': $!";
+copy_single_audio_fixture(
+    'm4b',
+    File::Spec->catfile('Dog Lift Campe 4 - An Doggone Fashion Tale', 'book.m4b')
+);
+my ($exit_has_subtitle_series_volume, $out_has_subtitle_series_volume, $err_has_subtitle_series_volume) = run_cmd(
+    'perl',
+    $script,
+    '--has-subtitle',
+    'Dog Lift Campe 4 - An Doggone Fashion Tale'
+);
+is($exit_has_subtitle_series_volume, 0, '--has-subtitle series-volume and subtitle input succeeds');
+ok(-d 'Vol. 4 - Dog Lift Campe 4', '--has-subtitle series-volume case creates expected directory');
+ok(!-d 'Dog Lift Campe 4 - An Doggone Fashion Tale', '--has-subtitle series-volume source directory no longer exists after rename');
+ok(-f File::Spec->catfile('Vol. 4 - Dog Lift Campe 4', 'Dog Lift Campe 4.m4b'), '--has-subtitle series-volume case renames single audio file to inferred title');
+is(
+    tone_meta(
+        File::Spec->catfile('Vol. 4 - Dog Lift Campe 4', 'Dog Lift Campe 4.m4b'),
+        '$.meta.additionalFields.subtitle'
+    ),
+    'An Doggone Fashion Tale',
+    '--has-subtitle series-volume case updates subtitle metadata'
+);
+is($err_has_subtitle_series_volume, '', '--has-subtitle series-volume case does not write stderr');
+like($out_has_subtitle_series_volume, qr/^Title: Dog Lift Campe 4$/m, '--has-subtitle series-volume output includes title summary');
+like($out_has_subtitle_series_volume, qr/^Subtitle: An Doggone Fashion Tale$/m, '--has-subtitle series-volume output includes subtitle summary');
+like($out_has_subtitle_series_volume, qr/^Volume: 4$/m, '--has-subtitle series-volume output includes volume summary');
+unlike($out_has_subtitle_series_volume, qr/^Series:/m, '--has-subtitle series-volume output does not include series summary');
+
+remove_tree('Vol. 4 - Dog Lift Campe 4');
+
 mkdir '02.5 - Dog God' or die "failed to create fixture dir '02.5 - Dog God': $!";
 copy_single_audio_fixture('m4b', File::Spec->catfile('02.5 - Dog God', 'book.m4b'));
 write_file(File::Spec->catfile('02.5 - Dog God', 'cover.jpg'), 'cover-image');

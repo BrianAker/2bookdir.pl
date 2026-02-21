@@ -798,7 +798,13 @@ sub parse_args {
         }
 
         if (!defined $title && @dash_split == 1 && defined $inferred_meta{subtitle}) {
-            $title = $dash_split[0];
+            my ($first_pass, $series_volume, $has_series_volume) = extract_series_and_volume($dash_split[0]);
+            if ($has_series_volume) {
+                $title = $dash_split[0];
+                $part = $series_volume if !defined $part;
+            } else {
+                $title = $dash_split[0];
+            }
         }
 
         if (@dash_split >= 2 && @dash_split <= 4) {
