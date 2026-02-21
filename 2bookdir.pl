@@ -21,6 +21,7 @@ my $reverse = 0;
 my $show_version = 0;
 my $checkpoint = 0;
 my $has_subtitle = 0;
+my $series_override;
 GetOptions(
     'help|h'  => \$help,
     'json'    => \$json_output,
@@ -29,6 +30,7 @@ GetOptions(
     'version' => \$show_version,
     'checkpoint' => \$checkpoint,
     'has-subtitle' => \$has_subtitle,
+    'series=s' => \$series_override,
 ) or usage(1);
 
 usage(0) if $help;
@@ -40,7 +42,7 @@ usage(1) if @ARGV < 1;
 
 my ($summary_title, $summary_subtitle, $summary_volume, $summary_year, $summary_author, $summary_series, $summary_asin, $summary_narrators);
 my $ok = eval {
-    my ($book_file, $part_number, $book_title, $inferred_meta) = parse_args($as_is, $reverse, $has_subtitle, @ARGV);
+    my ($book_file, $part_number, $book_title, $inferred_meta) = parse_args($as_is, $reverse, $has_subtitle, $series_override, @ARGV);
     my $is_dir_source = -d $book_file;
     my @audio_files = find_audio_files($book_file);
     my $audio_count = scalar @audio_files;
@@ -690,7 +692,7 @@ sub usage {
     my ($exit_code) = @_;
 
     print <<'USAGE';
-Usage: 2bookdir.pl [--help] [--version] [--json] [--as-is] [--reverse] [--has-subtitle] book_file [part-number] [book title]
+Usage: 2bookdir.pl [--help] [--version] [--json] [--as-is] [--reverse] [--has-subtitle] [--series SERIES] book_file [part-number] [book title]
 
 Arguments:
   book_file     Required. Path to the source book file or directory.
@@ -698,6 +700,8 @@ Arguments:
                 dash-split inference formats.
   --has-subtitle Optional. For dash-split inference, treat the last segment
                 as subtitle metadata and remove it from title parsing.
+  --series      Optional. Explicit series name. If the series value ends with
+                a number, that number is used as inferred volume.
   part-number   Optional. Positive numeric value (for example: 2 or 2.1) used
                 to prefix the directory as "Vol. N - ...". If it is a 4-digit
                 year, it is treated as PublishingDate and the directory prefix
@@ -727,7 +731,7 @@ sub build_version {
 }
 
 sub parse_args {
-    my ($as_is_mode, $reverse_mode, $has_subtitle_mode, @args) = @_;
+    my ($as_is_mode, $reverse_mode, $has_subtitle_mode, $series_override_value, @args) = @_;
 
     my ($file, @rest);
     if (-e $args[0]) {
@@ -746,6 +750,11 @@ sub parse_args {
 
     my ($part, $title);
     my %inferred_meta;
+    if (defined $series_override_value && $series_override_value ne '') {
+        my ($first_pass, $series_volume, $has_series_volume) = extract_series_and_volume($series_override_value);
+        $inferred_meta{series} = $first_pass;
+        $part = $series_volume if $has_series_volume && defined $series_volume;
+    }
     if (@rest && $rest[0] =~ /^\d+(?:\.\d+)*$/) {
         $part = shift @rest;
         $title = @rest ? join(' ', @rest) : undef;

@@ -23,7 +23,7 @@ ok(defined $fixture_m4b && -f $fixture_m4b, 'fixture m4b exists');
 
 my ($exit_help, $out_help, $err_help) = run_cmd('perl', $script, '--help');
 is($exit_help, 0, '--help exits successfully');
-like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--as-is\] \[--reverse\] \[--has-subtitle\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
+like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--as-is\] \[--reverse\] \[--has-subtitle\] \[--series SERIES\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
 is($err_help, '', 'help does not write stderr');
 
 my ($exit_version, $out_version, $err_version) = run_cmd('perl', $script, '--version');
@@ -55,6 +55,38 @@ is($success_json->{response}, 'success', 'json success reports success response'
 is($success_json->{meta}->{title}, 'Json Dog', 'json success includes title in meta');
 is($success_json->{meta}->{volume}, '3', 'json success includes volume in meta');
 ok(!defined $success_json->{meta}->{year}, 'json success leaves year undefined when not present');
+
+copy_single_audio_fixture('m4b', 'My Dog Gone Like!.m4b');
+my ($exit_series_only, $out_series_only, $err_series_only) = run_cmd('perl', $script, '--series', 'Dog Gone', 'My Dog Gone Like!.m4b');
+is($exit_series_only, 0, '--series without numeric suffix sets series and keeps no volume');
+ok(-d 'My Dog Gone Like!', '--series without numeric suffix creates title directory');
+ok(-f File::Spec->catfile('My Dog Gone Like!', 'My Dog Gone Like!.m4b'), '--series without numeric suffix moves file to title directory');
+is($err_series_only, '', '--series without numeric suffix does not write stderr');
+like($out_series_only, qr/^Title: My Dog Gone Like!$/m, '--series without numeric suffix output includes title summary');
+like($out_series_only, qr/^Series: Dog Gone$/m, '--series without numeric suffix output includes series summary');
+unlike($out_series_only, qr/^Volume:/m, '--series without numeric suffix output does not include volume summary');
+
+remove_tree('My Dog Gone Like!');
+copy_single_audio_fixture('m4b', 'My Dog Gone Like!.m4b');
+my ($exit_series_with_volume, $out_series_with_volume, $err_series_with_volume) = run_cmd('perl', $script, '--series', 'Dog Gone 1', 'My Dog Gone Like!.m4b');
+is($exit_series_with_volume, 0, '--series numeric suffix infers volume');
+ok(-d 'Vol. 1 - My Dog Gone Like!', '--series numeric suffix creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 1 - My Dog Gone Like!', 'My Dog Gone Like!.m4b'), '--series numeric suffix moves file to expected directory');
+is($err_series_with_volume, '', '--series numeric suffix does not write stderr');
+like($out_series_with_volume, qr/^Title: My Dog Gone Like!$/m, '--series numeric suffix output includes title summary');
+like($out_series_with_volume, qr/^Series: Dog Gone$/m, '--series numeric suffix output includes parsed series summary');
+like($out_series_with_volume, qr/^Volume: 1$/m, '--series numeric suffix output includes inferred volume summary');
+
+remove_tree('Vol. 1 - My Dog Gone Like!');
+copy_single_audio_fixture('m4b', 'Vol. 1 - My Dog Gone Like!.m4b');
+my ($exit_series_with_title_volume, $out_series_with_title_volume, $err_series_with_title_volume) = run_cmd('perl', $script, '--series', 'Dog Gone', 'Vol. 1 - My Dog Gone Like!.m4b');
+is($exit_series_with_title_volume, 0, '--series with title volume token keeps explicit series and infers title/volume from source');
+ok(-d 'Vol. 1 - My Dog Gone Like!', '--series with title volume token creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 1 - My Dog Gone Like!', 'My Dog Gone Like!.m4b'), '--series with title volume token renames file to inferred title');
+is($err_series_with_title_volume, '', '--series with title volume token does not write stderr');
+like($out_series_with_title_volume, qr/^Title: My Dog Gone Like!$/m, '--series with title volume token output includes title summary');
+like($out_series_with_title_volume, qr/^Series: Dog Gone$/m, '--series with title volume token output includes explicit series summary');
+like($out_series_with_title_volume, qr/^Volume: 1$/m, '--series with title volume token output includes inferred volume summary');
 
 copy_single_audio_fixture('mp3', '02 As Is.mp3');
 my ($exit_as_is, $out_as_is, $err_as_is) = run_cmd('perl', $script, '--as-is', '02 As Is.mp3');
