@@ -532,6 +532,28 @@ like($out_has_subtitle_complex, qr/^Volume: 1$/m, '--has-subtitle complex output
 like($out_has_subtitle_complex, qr/^Year: 1994$/m, '--has-subtitle complex output includes year summary');
 like($out_has_subtitle_complex, qr/^Narrators: Sam Tsoutsouvas$/m, '--has-subtitle complex output includes narrators summary');
 
+copy_single_audio_fixture('m4b', 'So You Want to Breed Dogs!- Lessons from the Lab to the shit-zu [2024].m4b');
+my ($exit_inline_subtitle, $out_inline_subtitle, $err_inline_subtitle) = run_cmd(
+    'perl',
+    $script,
+    'So You Want to Breed Dogs!- Lessons from the Lab to the shit-zu [2024].m4b'
+);
+is($exit_inline_subtitle, 0, 'inline title subtitle marker with bracketed year succeeds');
+ok(-d '2024 - So You Want to Breed Dogs!', 'inline subtitle marker with bracketed year creates expected publishing-date directory');
+ok(-f File::Spec->catfile('2024 - So You Want to Breed Dogs!', 'So You Want to Breed Dogs!.m4b'), 'inline subtitle marker renames audio file to parsed title');
+is(
+    tone_meta(
+        File::Spec->catfile('2024 - So You Want to Breed Dogs!', 'So You Want to Breed Dogs!.m4b'),
+        '$.meta.additionalFields.subtitle'
+    ),
+    'Lessons from the Lab to the shit-zu',
+    'inline subtitle marker updates subtitle metadata'
+);
+is($err_inline_subtitle, '', 'inline subtitle marker does not write stderr');
+like($out_inline_subtitle, qr/^Title: So You Want to Breed Dogs!$/m, 'inline subtitle marker output includes parsed title');
+like($out_inline_subtitle, qr/^Subtitle: Lessons from the Lab to the shit-zu$/m, 'inline subtitle marker output includes parsed subtitle');
+like($out_inline_subtitle, qr/^Year: 2024$/m, 'inline subtitle marker output includes year summary');
+
 mkdir '02.5 - Dog God' or die "failed to create fixture dir '02.5 - Dog God': $!";
 copy_single_audio_fixture('m4b', File::Spec->catfile('02.5 - Dog God', 'book.m4b'));
 write_file(File::Spec->catfile('02.5 - Dog God', 'cover.jpg'), 'cover-image');

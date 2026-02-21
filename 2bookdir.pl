@@ -927,6 +927,22 @@ sub parse_args {
         if (!defined $title && $source_name_modified) {
             $title = $source_name;
         }
+
+        # Final pass: infer subtitle from title patterns like "Title!- Subtitle".
+        # The "- " marker must follow a non-space character, and this is disabled
+        # when --as-is is used.
+        if (
+            !$as_is_mode
+            && defined $title
+            && $title =~ /^(.*?\S)-\s+(.+)$/
+        ) {
+            my $parsed_title = trim($1);
+            my $parsed_subtitle = trim($2);
+            if ($parsed_title ne '' && $parsed_subtitle ne '') {
+                $title = $parsed_title;
+                $inferred_meta{subtitle} = $parsed_subtitle if !defined $inferred_meta{subtitle};
+            }
+        }
     }
 
     return ($file, $part, $title, \%inferred_meta);
