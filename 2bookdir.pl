@@ -872,6 +872,9 @@ sub parse_args {
                 }
                 if (!defined $part && $candidate =~ /^\d+(?:\.\d+)*$/) {
                     $part = normalize_inferred_part_number($candidate);
+                } elsif (!defined $part && $candidate =~ /^\s*(\d+)\.\s+(.+?)\s*$/) {
+                    $part = normalize_inferred_part_number($1);
+                    $inferred_meta{series} = trim($2) if trim($2) ne '';
                 } else {
                     my ($first_pass, $series_volume, $has_series_volume) = extract_series_and_volume($candidate);
                     if ($has_series_volume) {

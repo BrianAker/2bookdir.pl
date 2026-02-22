@@ -56,6 +56,21 @@ is($success_json->{meta}->{title}, 'Json Dog', 'json success includes title in m
 is($success_json->{meta}->{volume}, '3', 'json success includes volume in meta');
 ok(!defined $success_json->{meta}->{year}, 'json success leaves year undefined when not present');
 
+mkdir '03. Footown - From the the Shadows'
+  or die "failed to create fixture dir '03. Footown - From the the Shadows': $!";
+my ($exit_series_prefix_dot, $out_series_prefix_dot, $err_series_prefix_dot) = run_cmd(
+    'perl',
+    $script,
+    '03. Footown - From the the Shadows'
+);
+is($exit_series_prefix_dot, 0, 'dotted numeric series prefix infers volume/series/title');
+ok(-d 'Vol. 3 - From the the Shadows', 'dotted numeric series prefix creates expected volume directory');
+ok(!-d '03. Footown - From the the Shadows', 'dotted numeric series prefix source directory no longer exists after rename');
+is($err_series_prefix_dot, '', 'dotted numeric series prefix does not write stderr');
+like($out_series_prefix_dot, qr/^Title: From the the Shadows$/m, 'dotted numeric series prefix output includes title summary');
+like($out_series_prefix_dot, qr/^Volume: 3$/m, 'dotted numeric series prefix output includes volume summary');
+like($out_series_prefix_dot, qr/^Series: Footown$/m, 'dotted numeric series prefix output includes series summary');
+
 copy_single_audio_fixture('m4b', 'My Dog Gone Like!.m4b');
 my ($exit_series_only, $out_series_only, $err_series_only) = run_cmd('perl', $script, '--series', 'Dog Gone', 'My Dog Gone Like!.m4b');
 is($exit_series_only, 0, '--series without numeric suffix sets series and keeps no volume');
