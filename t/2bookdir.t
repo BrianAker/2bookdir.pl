@@ -750,8 +750,23 @@ is($exit_cover_exclusion, 0, 'directory source with existing cover image succeed
 ok(-d 'Vol. 7 - Cover Exclusion', 'volume directory for cover exclusion test is created');
 ok(-f File::Spec->catfile('Vol. 7 - Cover Exclusion', 'cover.jpg'), 'cover.jpg exists after move');
 is(read_file(File::Spec->catfile('Vol. 7 - Cover Exclusion', 'cover.jpg')), '1234567', 'cover.jpg is replaced from largest non-cover candidate');
+ok(-f File::Spec->catfile('Vol. 7 - Cover Exclusion', 'cover-orig.jpg'), 'original cover.jpg is backed up to cover-orig.jpg');
+is(read_file(File::Spec->catfile('Vol. 7 - Cover Exclusion', 'cover-orig.jpg')), '12345678901234567890', 'cover-orig.jpg preserves original cover content');
 is($err_cover_exclusion, '', 'cover exclusion test does not write stderr');
 like($out_cover_exclusion, qr/^Moved: Image Exclusion -> Vol\. 7 - Cover Exclusion$/m, 'cover exclusion output includes destination');
+
+mkdir 'Image Duplicate Cover' or die "failed to create fixture dir 'Image Duplicate Cover': $!";
+copy_single_audio_fixture('mp3', File::Spec->catfile('Image Duplicate Cover', 'track01.mp3'));
+write_file(File::Spec->catfile('Image Duplicate Cover', 'cover.jpg'), 'same-image-content');
+write_file(File::Spec->catfile('Image Duplicate Cover', 'poster.jpg'), 'same-image-content');
+my ($exit_cover_duplicate, $out_cover_duplicate, $err_cover_duplicate) = run_cmd('perl', $script, 'Image Duplicate Cover', '8', 'Cover Duplicate');
+is($exit_cover_duplicate, 0, 'directory source with duplicate cover candidate succeeds');
+ok(-d 'Vol. 8 - Cover Duplicate', 'volume directory for duplicate cover test is created');
+ok(-f File::Spec->catfile('Vol. 8 - Cover Duplicate', 'cover.jpg'), 'cover.jpg exists for duplicate cover test');
+is(read_file(File::Spec->catfile('Vol. 8 - Cover Duplicate', 'cover.jpg')), 'same-image-content', 'cover.jpg remains unchanged for duplicate cover test');
+ok(!-f File::Spec->catfile('Vol. 8 - Cover Duplicate', 'cover-orig.jpg'), 'cover-orig.jpg is not created when it would be a duplicate');
+is($err_cover_duplicate, '', 'duplicate cover test does not write stderr');
+like($out_cover_duplicate, qr/^Moved: Image Duplicate Cover -> Vol\. 8 - Cover Duplicate$/m, 'duplicate cover output includes destination');
 
 chdir $old_cwd or die "failed to restore cwd '$old_cwd': $!";
 

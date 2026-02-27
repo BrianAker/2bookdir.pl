@@ -422,8 +422,23 @@ sub maybe_create_cover_image {
     } @candidates;
 
     my $cover_path = File::Spec->catfile($dir, "cover.$largest->{ext}");
-    copy($largest->{path}, $cover_path)
-      or die "Error: failed to copy '$largest->{path}' to '$cover_path': $!\n";
+    if (-f $cover_path) {
+        my $cover_orig_path = File::Spec->catfile($dir, "cover-orig.$largest->{ext}");
+        my $cover_matches_largest = files_identical($cover_path, $largest->{path});
+        if (!$cover_matches_largest) {
+            if (!-e $cover_orig_path) {
+                copy($cover_path, $cover_orig_path)
+                  or die "Error: failed to copy '$cover_path' to '$cover_orig_path': $!\n";
+            } elsif (!files_identical($cover_orig_path, $cover_path)) {
+                # Keep existing non-duplicate backup as-is; do not overwrite.
+            }
+        }
+    }
+
+    if (!-f $cover_path || !files_identical($largest->{path}, $cover_path)) {
+        copy($largest->{path}, $cover_path)
+          or die "Error: failed to copy '$largest->{path}' to '$cover_path': $!\n";
+    }
 }
 
 sub album_name_from_path {
@@ -648,6 +663,43 @@ sub run_external_cmd {
     my $exit = $? >> 8;
 
     return ($exit, $stdout, $stderr);
+}
+
+sub files_identical {
+    my ($left, $right) = @_;
+    return 0 if !defined $left || !defined $right;
+    return 0 if !-f $left || !-f $right;
+
+    my $left_size = -s $left;
+    my $right_size = -s $right;
+    return 0 if !defined $left_size || !defined $right_size;
+    return 0 if $left_size != $right_size;
+
+    open my $lfh, '<', $left or return 0;
+    open my $rfh, '<', $right or do { close $lfh; return 0; };
+    binmode $lfh;
+    binmode $rfh;
+
+    my ($lbuf, $rbuf);
+    while (1) {
+        my $lread = read($lfh, $lbuf, 8192);
+        my $rread = read($rfh, $rbuf, 8192);
+        if (!defined $lread || !defined $rread) {
+            close $lfh;
+            close $rfh;
+            return 0;
+        }
+        last if $lread == 0 && $rread == 0;
+        if ($lread != $rread || $lbuf ne $rbuf) {
+            close $lfh;
+            close $rfh;
+            return 0;
+        }
+    }
+
+    close $lfh;
+    close $rfh;
+    return 1;
 }
 
 sub is_publishing_year {
