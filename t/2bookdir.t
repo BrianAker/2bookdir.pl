@@ -616,6 +616,49 @@ like($out_inline_subtitle, qr/^Title: So You Want to Breed Dogs!$/m, 'inline sub
 like($out_inline_subtitle, qr/^Subtitle: Lessons from the Lab to the shit-zu$/m, 'inline subtitle marker output includes parsed subtitle');
 like($out_inline_subtitle, qr/^Year: 2024$/m, 'inline subtitle marker output includes year summary');
 
+copy_single_audio_fixture('m4b', 'R.A. Babish - Super Tumor 4: The Search for the Bump.m4b');
+my ($exit_author_colon_subtitle, $out_author_colon_subtitle, $err_author_colon_subtitle) = run_cmd(
+    'perl',
+    $script,
+    'R.A. Babish - Super Tumor 4: The Search for the Bump.m4b'
+);
+is($exit_author_colon_subtitle, 0, 'author/title input with colon subtitle marker succeeds');
+ok(-d 'Super Tumor 4', 'author/title colon subtitle case creates expected title directory');
+ok(-f File::Spec->catfile('Super Tumor 4', 'Super Tumor 4.m4b'), 'author/title colon subtitle case renames single audio file to title');
+is(
+    tone_meta(
+        File::Spec->catfile('Super Tumor 4', 'Super Tumor 4.m4b'),
+        '$.meta.additionalFields.subtitle'
+    ),
+    'The Search for the Bump',
+    'author/title colon subtitle case updates subtitle metadata'
+);
+is($err_author_colon_subtitle, '', 'author/title colon subtitle case does not write stderr');
+like($out_author_colon_subtitle, qr/^Title: Super Tumor 4$/m, 'author/title colon subtitle output includes parsed title');
+like($out_author_colon_subtitle, qr/^Subtitle: The Search for the Bump$/m, 'author/title colon subtitle output includes parsed subtitle');
+like($out_author_colon_subtitle, qr/^Author: R\.A\. Babish$/m, 'author/title colon subtitle output includes parsed author');
+
+copy_single_audio_fixture('m4b', 'Rocket Dogs- Into Orbit.m4b');
+my ($exit_hyphen_subtitle, $out_hyphen_subtitle, $err_hyphen_subtitle) = run_cmd(
+    'perl',
+    $script,
+    'Rocket Dogs- Into Orbit.m4b'
+);
+is($exit_hyphen_subtitle, 0, 'single title with hyphen subtitle marker succeeds');
+ok(-d 'Rocket Dogs', 'hyphen subtitle marker creates expected title directory');
+ok(-f File::Spec->catfile('Rocket Dogs', 'Rocket Dogs.m4b'), 'hyphen subtitle marker renames single audio file to parsed title');
+is(
+    tone_meta(
+        File::Spec->catfile('Rocket Dogs', 'Rocket Dogs.m4b'),
+        '$.meta.additionalFields.subtitle'
+    ),
+    'Into Orbit',
+    'hyphen subtitle marker updates subtitle metadata'
+);
+is($err_hyphen_subtitle, '', 'hyphen subtitle marker does not write stderr');
+like($out_hyphen_subtitle, qr/^Title: Rocket Dogs$/m, 'hyphen subtitle marker output includes parsed title');
+like($out_hyphen_subtitle, qr/^Subtitle: Into Orbit$/m, 'hyphen subtitle marker output includes parsed subtitle');
+
 mkdir 'Dog Lift Campe 4 - An Doggone Fashion Tale'
   or die "failed to create fixture dir 'Dog Lift Campe 4 - An Doggone Fashion Tale': $!";
 copy_single_audio_fixture(
