@@ -137,6 +137,7 @@ my ($exit_spaced, $out_spaced, $err_spaced) = run_cmd('perl', $script, 'Frog', '
 is($exit_spaced, 0, 'unquoted spaced filename succeeds');
 ok(-d 'Frog God', 'directory for spaced filename is created');
 ok(-f File::Spec->catfile('Frog God', 'Frog God.m4b'), 'spaced filename moved into target directory');
+is(tone_title(File::Spec->catfile('Frog God', 'Frog God.m4b')), 'Frog God', 'single-audio inferred album name is copied to title metadata');
 is($err_spaced, '', 'spaced filename move does not write stderr');
 like($out_spaced, qr/^Moved: Frog God\.m4b -> Frog God\/Frog God\.m4b$/m, 'spaced filename output includes destination');
 
@@ -174,6 +175,7 @@ is($exit_spaced_title, 0, 'unquoted spaced filename with part and title succeeds
 ok(-d 'Vol. 3 - My Dog', 'volume directory for explicit title is created');
 ok(-f File::Spec->catfile('Vol. 3 - My Dog', 'My Dog.m4b'), 'explicit title is used as destination filename');
 is(tone_album(File::Spec->catfile('Vol. 3 - My Dog', 'My Dog.m4b')), 'My Dog', 'renamed single audio file album metadata is updated to title');
+is(tone_title(File::Spec->catfile('Vol. 3 - My Dog', 'My Dog.m4b')), 'My Dog', 'renamed single audio file title metadata is updated to title');
 is(tone_meta(File::Spec->catfile('Vol. 3 - My Dog', 'My Dog.m4b'), '$.meta.movement'), '3', 'integer volume number is written to movement metadata');
 is($err_spaced_title, '', 'spaced filename with part and title does not write stderr');
 like($out_spaced_title, qr/^Moved: Frog God\.m4b -> Vol\. 3 - My Dog\/My Dog\.m4b$/m, 'spaced filename with part and title output includes destination');
@@ -184,6 +186,7 @@ is($exit_spaced_title_decimal, 0, 'single audio file with decimal part and title
 ok(-d 'Vol. 2.1 - My Part', 'volume directory for decimal title case is created');
 ok(-f File::Spec->catfile('Vol. 2.1 - My Part', 'My Part.m4b'), 'decimal title case file is renamed to title');
 is(tone_album(File::Spec->catfile('Vol. 2.1 - My Part', 'My Part.m4b')), 'My Part', 'decimal title case album metadata is updated to title');
+is(tone_title(File::Spec->catfile('Vol. 2.1 - My Part', 'My Part.m4b')), 'My Part', 'decimal title case title metadata is updated to title');
 is(tone_part(File::Spec->catfile('Vol. 2.1 - My Part', 'My Part.m4b')), '2.1', 'non-integer volume number is written to part metadata');
 is(tone_meta(File::Spec->catfile('Vol. 2.1 - My Part', 'My Part.m4b'), '$.meta.movement'), '2', 'non-integer volume also writes movement using whole number');
 is($err_spaced_title_decimal, '', 'decimal title case does not write stderr');
@@ -196,6 +199,7 @@ ok(-d 'Lucky Biggerwolf for Doom', 'unabridged file creates directory from strip
 ok(-f File::Spec->catfile('Lucky Biggerwolf for Doom', 'Lucky Biggerwolf for Doom.m4b'), 'unabridged single audio file is renamed to stripped title');
 ok(!-f File::Spec->catfile('Lucky Biggerwolf for Doom', 'Lucky Biggerwolf for Doom (Unabridged).m4b'), 'unabridged source filename is not kept after title rename');
 is(tone_album(File::Spec->catfile('Lucky Biggerwolf for Doom', 'Lucky Biggerwolf for Doom.m4b')), 'Lucky Biggerwolf for Doom', 'unabridged single audio file album metadata is updated to stripped title');
+is(tone_title(File::Spec->catfile('Lucky Biggerwolf for Doom', 'Lucky Biggerwolf for Doom.m4b')), 'Lucky Biggerwolf for Doom', 'unabridged single audio file title metadata is updated to stripped title');
 is($err_unabridged_file, '', 'unabridged file case does not write stderr');
 like($out_unabridged_file, qr/^Moved: Lucky Biggerwolf for Doom \(Unabridged\)\.m4b -> Lucky Biggerwolf for Doom\/Lucky Biggerwolf for Doom\.m4b$/m, 'unabridged file output includes expected destination');
 like($out_unabridged_file, qr/^Title: Lucky Biggerwolf for Doom$/m, 'unabridged file output includes stripped title summary');
@@ -735,6 +739,7 @@ ok(!-d 'Pack', 'titled source directory no longer exists after rename');
 ok(-f File::Spec->catfile('Vol. 5 - My Pack', 'My Pack.mp3'), 'single audio file is renamed to title');
 ok(!-f File::Spec->catfile('Vol. 5 - My Pack', 'track01.mp3'), 'old audio filename is not kept for single-audio directory');
 is(tone_album(File::Spec->catfile('Vol. 5 - My Pack', 'My Pack.mp3')), 'My Pack', 'renamed single audio in directory has album metadata updated to title');
+is(tone_title(File::Spec->catfile('Vol. 5 - My Pack', 'My Pack.mp3')), 'My Pack', 'renamed single audio in directory has title metadata updated to title');
 is(tone_meta(File::Spec->catfile('Vol. 5 - My Pack', 'My Pack.mp3'), '$.meta.movement'), '5', 'directory single-audio integer volume is written to movement metadata');
 is($err_dir_title, '', 'directory source with part and title does not write stderr');
 like($out_dir_title, qr/^Moved: Pack -> Vol\. 5 - My Pack$/m, 'directory source with title output includes destination');
@@ -750,6 +755,39 @@ ok(-f File::Spec->catfile('Vol. 3 - Conversations', 'Part1.mp3'), 'first audio f
 ok(-f File::Spec->catfile('Vol. 3 - Conversations', 'Part2.mp3'), 'second audio file is preserved');
 is($err_dir_multi_audio, '', 'multi-audio directory source does not write stderr');
 like($out_dir_multi_audio, qr/^Moved: Frog God Folder -> Vol\. 3 - Conversations$/m, 'multi-audio directory output includes renamed destination');
+
+mkdir 'Foo Dyntasty' or die "failed to create fixture dir 'Foo Dyntasty': $!";
+copy_audio_fixture('mp3', File::Spec->catfile('Foo Dyntasty', 'part 1.mp3'));
+copy_audio_fixture('mp3', File::Spec->catfile('Foo Dyntasty', 'part 2.mp3'));
+copy_audio_fixture('mp3', File::Spec->catfile('Foo Dyntasty', 'part 3.mp3'));
+copy_audio_fixture('mp3', File::Spec->catfile('Foo Dyntasty', 'part 4.mp3'));
+copy_audio_fixture('mp3', File::Spec->catfile('Foo Dyntasty', 'part5.mp3'));
+set_tone_title(File::Spec->catfile('Foo Dyntasty', 'part 1.mp3'), 'Intro');
+set_tone_title(File::Spec->catfile('Foo Dyntasty', 'part 2.mp3'), 'Chapter 1');
+set_tone_title(File::Spec->catfile('Foo Dyntasty', 'part 3.mp3'), 'Chapter 2');
+set_tone_title(File::Spec->catfile('Foo Dyntasty', 'part 4.mp3'), 'Chapter 3');
+set_tone_title(File::Spec->catfile('Foo Dyntasty', 'part5.mp3'), 'Outro');
+my ($exit_multi_title_preserve, $out_multi_title_preserve, $err_multi_title_preserve) = run_cmd('perl', $script, 'Foo Dyntasty', '1');
+is($exit_multi_title_preserve, 0, 'multi-audio directory with per-file title tags succeeds');
+ok(-d 'Vol. 1 - Foo Dyntasty', 'multi-audio title-preserve case creates expected volume directory');
+ok(!-d 'Foo Dyntasty', 'multi-audio title-preserve source directory is renamed');
+ok(-f File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part 1.mp3'), 'multi-audio title-preserve keeps part 1 filename');
+ok(-f File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part 2.mp3'), 'multi-audio title-preserve keeps part 2 filename');
+ok(-f File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part 3.mp3'), 'multi-audio title-preserve keeps part 3 filename');
+ok(-f File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part 4.mp3'), 'multi-audio title-preserve keeps part 4 filename');
+ok(-f File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part5.mp3'), 'multi-audio title-preserve keeps part5 filename');
+is(tone_title(File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part 1.mp3')), 'Intro', 'multi-audio title-preserve keeps per-file title metadata for part 1');
+is(tone_title(File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part 2.mp3')), 'Chapter 1', 'multi-audio title-preserve keeps per-file title metadata for part 2');
+is(tone_title(File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part 3.mp3')), 'Chapter 2', 'multi-audio title-preserve keeps per-file title metadata for part 3');
+is(tone_title(File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part 4.mp3')), 'Chapter 3', 'multi-audio title-preserve keeps per-file title metadata for part 4');
+is(tone_title(File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part5.mp3')), 'Outro', 'multi-audio title-preserve keeps per-file title metadata for part5');
+is(tone_album(File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part 1.mp3')), 'Foo Dyntasty', 'multi-audio title-preserve sets album metadata for part 1');
+is(tone_album(File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part 2.mp3')), 'Foo Dyntasty', 'multi-audio title-preserve sets album metadata for part 2');
+is(tone_album(File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part 3.mp3')), 'Foo Dyntasty', 'multi-audio title-preserve sets album metadata for part 3');
+is(tone_album(File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part 4.mp3')), 'Foo Dyntasty', 'multi-audio title-preserve sets album metadata for part 4');
+is(tone_album(File::Spec->catfile('Vol. 1 - Foo Dyntasty', 'part5.mp3')), 'Foo Dyntasty', 'multi-audio title-preserve sets album metadata for part5');
+is($err_multi_title_preserve, '', 'multi-audio title-preserve case does not write stderr');
+like($out_multi_title_preserve, qr/^Moved: Foo Dyntasty -> Vol\. 1 - Foo Dyntasty$/m, 'multi-audio title-preserve output includes expected move line');
 
 mkdir 'Image Book' or die "failed to create fixture dir 'Image Book': $!";
 copy_single_audio_fixture('mp3', File::Spec->catfile('Image Book', 'track01.mp3'));
@@ -873,6 +911,26 @@ sub tag_audio_album_from_filename {
 sub tone_album {
     my ($path) = @_;
     return tone_meta($path, '$.meta.album');
+}
+
+sub tone_title {
+    my ($path) = @_;
+    return tone_meta($path, '$.meta.title');
+}
+
+sub set_tone_title {
+    my ($path, $title) = @_;
+
+    my ($tag_exit, $tag_out, $tag_err) = run_cmd('tone', 'tag', '--meta-title', $title, $path);
+    my $tag_combined = lc("$tag_out\n$tag_err");
+    if ($tag_combined =~ /\b(error|failed|panic|exception)\b/) {
+        die "tone tag reported an error for '$path': $tag_out$tag_err";
+    }
+
+    my $tagged_title = tone_title($path);
+    if ($tagged_title ne $title) {
+        die "tone title verification failed for '$path': expected '$title', got '$tagged_title'";
+    }
 }
 
 sub tone_meta {

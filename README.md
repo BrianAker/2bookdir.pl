@@ -24,8 +24,8 @@ directory and moves a book file into it.
   `2.1`). If provided, directory name is prefixed as `Vol. N - ...`.
   If `part-number` is a 4-digit year, it is treated as PublishingDate and
   the directory prefix becomes `YYYY - ...`.
-- `book title` (optional): Title to use for the directory name. If omitted,
-  the source filename (without extension) is used.
+- `book title` (optional): Album name to use for the directory name. If
+  omitted, the source filename (without extension) is used.
 
 ## Examples
 
@@ -38,16 +38,18 @@ directory and moves a book file into it.
 ```
 
 If exactly one `.mp3`, `.mka`, or `.m4b` file is found in `book_file`, that
-audio file is renamed to `book title` while preserving its original extension.
-In that single-audio case, the file's album metadata is also updated to
-`book title` via `tone`. The volume number is also written via `tone` as:
+audio file is renamed to `book title` (album name) while preserving its
+original extension. In that single-audio case, the album name is written to
+both title and album metadata via `tone`. The volume number is also written
+via `tone` as:
 - `movement` when the volume number is an integer (for example `3`)
 - `part` when the volume number is non-integer (for example `2.1`)
   and in non-integer cases `movement` is also set to the whole-number prefix
   (for example `2.1` -> `movement=2`)
 PublishingDate years write `--meta-publishing-date=YYYY-01-01` instead of
 `movement`/`part`.
-If more than one such audio file is found, filenames are not renamed.
+If more than one such audio file is found, filenames are not renamed and
+title metadata is left unchanged, but album metadata is written to each file.
 
 When `part-number` is omitted, `book_file` names beginning with a number are
 inferred as volume/title sources:

@@ -100,6 +100,12 @@ my $ok = eval {
             subtitle    => $inferred_meta->{subtitle},
             audio_files => \@audio_files,
         );
+        maybe_set_multi_audio_album(
+            source_root => $book_file,
+            dest_root   => $dest_dir,
+            album       => $resolved_title,
+            audio_files => \@audio_files,
+        );
         maybe_create_cover_image($dest_dir);
 
         emit_success(
@@ -133,10 +139,11 @@ my $ok = eval {
     move($book_file, $dest_file)
       or die "Error: failed to move '$book_file' to '$dest_file': $!\n";
 
-    if ($audio_count == 1 && defined $book_title && length $book_title) {
+    if ($audio_count == 1) {
         tone_set_audio_metadata(
             path        => $dest_file,
-            album       => album_name_from_path($dest_file),
+            album       => $resolved_title,
+            title       => $resolved_title,
             part_number => $part_number,
             author      => $inferred_meta->{author},
             series      => $inferred_meta->{series},
@@ -145,8 +152,6 @@ my $ok = eval {
             subtitle    => $inferred_meta->{subtitle},
             narrators   => $inferred_meta->{narrators},
         );
-    } elsif ($audio_count == 1 && (is_publishing_year($part_number) || defined $inferred_meta->{year})) {
-        tone_set_publishing_date($dest_file, $inferred_meta->{year} // $part_number);
     }
 
     emit_success(
@@ -379,17 +384,19 @@ sub maybe_rename_single_audio {
     $name = sanitize($name);
     my $renamed_audio = File::Spec->catfile(dirname($dest_audio), $name . $ext);
 
-    return if $renamed_audio eq $dest_audio;
-    if (-e $renamed_audio) {
-        die "Error: destination file '$renamed_audio' already exists.\n";
-    }
+    if ($renamed_audio ne $dest_audio) {
+        if (-e $renamed_audio) {
+            die "Error: destination file '$renamed_audio' already exists.\n";
+        }
 
-    move($dest_audio, $renamed_audio)
-      or die "Error: failed to rename '$dest_audio' to '$renamed_audio': $!\n";
+        move($dest_audio, $renamed_audio)
+          or die "Error: failed to rename '$dest_audio' to '$renamed_audio': $!\n";
+    }
 
     tone_set_audio_metadata(
         path        => $renamed_audio,
-        album       => album_name_from_path($renamed_audio),
+        album       => $title,
+        title       => $title,
         part_number => $args{part_number},
         author      => $args{author},
         series      => $args{series},
@@ -398,6 +405,30 @@ sub maybe_rename_single_audio {
         subtitle    => $args{subtitle},
         narrators   => $args{narrators},
     );
+}
+
+sub maybe_set_multi_audio_album {
+    my (%args) = @_;
+    my $album = $args{album};
+    my $audio_files = $args{audio_files} // [];
+
+    return if !defined $album || $album eq '';
+    return if @$audio_files <= 1;
+
+    my $source_root = File::Spec->rel2abs($args{source_root});
+    my $dest_root = File::Spec->rel2abs($args{dest_root});
+
+    for my $source_audio (@$audio_files) {
+        my $source_abs = File::Spec->rel2abs($source_audio);
+        my $relative_audio = File::Spec->abs2rel($source_abs, $source_root);
+        my $dest_audio = File::Spec->catfile($dest_root, $relative_audio);
+        next if !-f $dest_audio;
+
+        tone_set_album_only(
+            path  => $dest_audio,
+            album => $album,
+        );
+    }
 }
 
 sub maybe_create_cover_image {
@@ -461,6 +492,7 @@ sub tone_set_audio_metadata {
     my (%args) = @_;
     my $path = $args{path};
     my $album = $args{album};
+    my $title = $args{title};
     my $part_number = $args{part_number};
     my $author = $args{author};
     my $series = $args{series};
@@ -468,9 +500,11 @@ sub tone_set_audio_metadata {
     my $asin = $args{asin};
     my $subtitle = $args{subtitle};
     my $narrators = $args{narrators};
-    return if !defined $album || $album eq '';
+    return if (!defined $album || $album eq '') && (!defined $title || $title eq '');
 
-    my @tag_cmd = ('tone', 'tag', '--meta-album', $album);
+    my @tag_cmd = ('tone', 'tag');
+    push @tag_cmd, '--meta-album', $album if defined $album && $album ne '';
+    push @tag_cmd, '--meta-title', $title if defined $title && $title ne '';
     push @tag_cmd, '--meta-artist', $author if defined $author && $author ne '';
     push @tag_cmd, '--meta-movement-name', $series if defined $series && $series ne '';
     push @tag_cmd, '--meta-additional-field', "AUDIBLE_ASIN=$asin" if defined $asin && $asin ne '';
@@ -500,15 +534,29 @@ sub tone_set_audio_metadata {
     }
     tone_postprocess($path);
 
-    my ($dump_exit, $dump_out, $dump_err) = run_external_cmd(
-        'tone', 'dump', $path, '--format', 'json', '--query', '$.meta.album'
-    );
-    my $dump_output = lc("$dump_out\n$dump_err");
-    if ($dump_output =~ /\b(error|failed|panic|exception)\b/) {
-        die "Error: tone dump failed for '$path': $dump_out$dump_err";
+    if (defined $album && $album ne '') {
+        my ($dump_exit, $dump_out, $dump_err) = run_external_cmd(
+            'tone', 'dump', $path, '--format', 'json', '--query', '$.meta.album'
+        );
+        my $dump_output = lc("$dump_out\n$dump_err");
+        if ($dump_output =~ /\b(error|failed|panic|exception)\b/) {
+            die "Error: tone dump failed for '$path': $dump_out$dump_err";
+        }
+        if ($dump_out !~ /\Q$album\E/) {
+            die "Error: tone album verification failed for '$path': expected '$album', got '$dump_out'";
+        }
     }
-    if ($dump_out !~ /\Q$album\E/) {
-        die "Error: tone album verification failed for '$path': expected '$album', got '$dump_out'";
+    if (defined $title && $title ne '') {
+        my ($title_exit, $title_out, $title_err) = run_external_cmd(
+            'tone', 'dump', $path, '--format', 'json', '--query', '$.meta.title'
+        );
+        my $title_output = lc("$title_out\n$title_err");
+        if ($title_output =~ /\b(error|failed|panic|exception)\b/) {
+            die "Error: tone title verification failed for '$path': $title_out$title_err";
+        }
+        if ($title_out !~ /\Q$title\E/) {
+            die "Error: tone title mismatch for '$path': expected '$title', got '$title_out'";
+        }
     }
     if (defined $subtitle && $subtitle ne '') {
         my ($sub_exit, $sub_out, $sub_err) = run_external_cmd(
@@ -596,6 +644,34 @@ sub tone_set_audio_metadata {
         if ($dump_out !~ /"additionalFields"\s*:\s*\{[\s\S]*?"[^"]*ASIN"\s*:\s*"\Q$asin\E"/i) {
             die "Error: tone AUDIBLE_ASIN mismatch for '$path': expected '$asin'";
         }
+    }
+}
+
+sub tone_set_album_only {
+    my (%args) = @_;
+    my $path = $args{path};
+    my $album = $args{album};
+
+    return if !defined $album || $album eq '';
+
+    my ($tag_exit, $tag_out, $tag_err) = run_external_cmd(
+        'tone', 'tag', '--meta-album', $album, $path
+    );
+    my $tag_output = lc("$tag_out\n$tag_err");
+    if ($tag_output =~ /\b(error|failed|panic|exception)\b/) {
+        die "Error: tone album tag failed for '$path': $tag_out$tag_err";
+    }
+    tone_postprocess($path);
+
+    my ($dump_exit, $dump_out, $dump_err) = run_external_cmd(
+        'tone', 'dump', $path, '--format', 'json', '--query', '$.meta.album'
+    );
+    my $dump_output = lc("$dump_out\n$dump_err");
+    if ($dump_output =~ /\b(error|failed|panic|exception)\b/) {
+        die "Error: tone album verification failed for '$path': $dump_out$dump_err";
+    }
+    if ($dump_out !~ /\Q$album\E/) {
+        die "Error: tone album mismatch for '$path': expected '$album', got '$dump_out'";
     }
 }
 
@@ -772,7 +848,8 @@ Arguments:
                 to prefix the directory as "Vol. N - ...". If it is a 4-digit
                 year, it is treated as PublishingDate and the directory prefix
                 becomes "YYYY - ...".
-  book title    Optional. If omitted, the filename (without extension) is used.
+  book title    Optional album name. If omitted, the filename (without
+                extension) is used.
 
 Behavior:
   For file sources, creates the target directory if needed and moves book_file
@@ -780,10 +857,10 @@ Behavior:
   For directory sources, renames/moves the source directory to the target
   volume directory name.
   If exactly one mp3/mka/m4b file is found in book_file, it is renamed to
-  book title while preserving its extension. If more than one is found, files
-  keep their original names. When a single audio file is renamed, its album
-  metadata is updated via tone, plus movement for integer volume numbers or
-  part for non-integer volume numbers. PublishingDate years set
+  book title/album name while preserving its extension. If more than one is
+  found, files keep their original names. For single-audio cases, album and
+  title metadata are updated via tone, plus movement for integer volume
+  numbers or part for non-integer volume numbers. PublishingDate years set
   meta-publishing-date to YYYY-01-01.
   For directory sources, if one or more top-level jpg/png files exist that are
   not named cover.jpg/cover.png, the largest is copied to cover.jpg/cover.png.
