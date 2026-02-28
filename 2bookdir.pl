@@ -136,6 +136,7 @@ my $ok = eval {
             year        => $inferred_meta->{year},
             asin        => $inferred_meta->{asin},
             subtitle    => $inferred_meta->{subtitle},
+            narrators   => $inferred_meta->{narrators},
         );
     } elsif ($audio_count == 1 && (is_publishing_year($part_number) || defined $inferred_meta->{year})) {
         tone_set_publishing_date($dest_file, $inferred_meta->{year} // $part_number);
@@ -388,6 +389,7 @@ sub maybe_rename_single_audio {
         year        => $args{year},
         asin        => $args{asin},
         subtitle    => $args{subtitle},
+        narrators   => $args{narrators},
     );
 }
 
@@ -458,6 +460,7 @@ sub tone_set_audio_metadata {
     my $year = $args{year};
     my $asin = $args{asin};
     my $subtitle = $args{subtitle};
+    my $narrators = $args{narrators};
     return if !defined $album || $album eq '';
 
     my @tag_cmd = ('tone', 'tag', '--meta-album', $album);
@@ -465,6 +468,8 @@ sub tone_set_audio_metadata {
     push @tag_cmd, '--meta-movement-name', $series if defined $series && $series ne '';
     push @tag_cmd, '--meta-additional-field', "AUDIBLE_ASIN=$asin" if defined $asin && $asin ne '';
     push @tag_cmd, '--meta-subtitle', $subtitle if defined $subtitle && $subtitle ne '';
+    push @tag_cmd, '--meta-composer', $narrators if defined $narrators && $narrators ne '';
+    push @tag_cmd, '--meta-narrator', $narrators if defined $narrators && $narrators ne '';
     if (defined $part_number && $part_number ne '' && !is_publishing_year($part_number)) {
         if ($part_number =~ /^\d+$/ && $part_number >= 0) {
             push @tag_cmd, '--meta-movement', $part_number;

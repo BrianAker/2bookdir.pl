@@ -266,6 +266,7 @@ like($out_checkpoint_narrator, qr/^Title: Narrated Foo$/m, 'checkpoint narrator 
 like($out_checkpoint_narrator, qr/^Volume: 3$/m, 'checkpoint narrator case output includes volume summary line');
 like($out_checkpoint_narrator, qr/^Year: 1993$/m, 'checkpoint narrator case output includes year summary line');
 like($out_checkpoint_narrator, qr/^Narrators: Jane Roe$/m, 'checkpoint narrator case output includes narrators summary line');
+like(tone_dump_json(File::Spec->catfile('Vol. 3 - Narrated Foo', 'Narrated Foo.mp3')), qr/"composer"\s*:\s*"Jane Roe"/i, 'checkpoint narrator case writes composer metadata');
 
 copy_single_audio_fixture('mp3', '1993 - Foo Json [B00TEST124].mp3');
 my ($exit_asin_json, $out_asin_json, $err_asin_json) = run_cmd('perl', $script, '--json', '1993 - Foo Json [B00TEST124].mp3');
