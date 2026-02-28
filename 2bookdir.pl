@@ -22,6 +22,7 @@ my $show_version = 0;
 my $checkpoint = 0;
 my $has_subtitle = 0;
 my $series_override;
+my $append_title;
 GetOptions(
     'help|h'  => \$help,
     'json'    => \$json_output,
@@ -31,6 +32,8 @@ GetOptions(
     'checkpoint' => \$checkpoint,
     'has-subtitle' => \$has_subtitle,
     'series=s' => \$series_override,
+    'append-title=s' => \$append_title,
+    'apend-title=s'  => \$append_title,
 ) or usage(1);
 
 usage(0) if $help;
@@ -47,6 +50,10 @@ my $ok = eval {
     my @audio_files = find_audio_files($book_file);
     my $audio_count = scalar @audio_files;
     my $resolved_title = resolve_title($book_file, $book_title);
+    if (defined $append_title && $append_title ne '') {
+        $resolved_title = append_title_suffix($resolved_title, $append_title);
+        $book_title = $resolved_title;
+    }
     my ($resolved_volume, $resolved_year) = resolve_volume_and_year($part_number, $inferred_meta->{year});
     $summary_title = $resolved_title;
     $summary_subtitle = $inferred_meta->{subtitle};
@@ -749,7 +756,7 @@ sub usage {
     my ($exit_code) = @_;
 
     print <<'USAGE';
-Usage: 2bookdir.pl [--help] [--version] [--json] [--as-is] [--reverse] [--has-subtitle] [--series SERIES] book_file [part-number] [book title]
+Usage: 2bookdir.pl [--help] [--version] [--json] [--as-is] [--reverse] [--has-subtitle] [--series SERIES] [--append-title TEXT] book_file [part-number] [book title]
 
 Arguments:
   book_file     Required. Path to the source book file or directory.
@@ -759,6 +766,8 @@ Arguments:
                 as subtitle metadata and remove it from title parsing.
   --series      Optional. Explicit series name. If the series value ends with
                 a number, that number is used as inferred volume.
+  --append-title Optional. Appends TEXT to the resolved title separated by a
+                single space. Alias: --apend-title.
   part-number   Optional. Positive numeric value (for example: 2 or 2.1) used
                 to prefix the directory as "Vol. N - ...". If it is a 4-digit
                 year, it is treated as PublishingDate and the directory prefix
@@ -1021,6 +1030,15 @@ sub parse_args {
     }
 
     return ($file, $part, $title, \%inferred_meta);
+}
+
+sub append_title_suffix {
+    my ($title, $suffix) = @_;
+    my $base = trim($title // '');
+    my $extra = trim($suffix // '');
+    return $base if $extra eq '';
+    return $extra if $base eq '';
+    return "$base $extra";
 }
 
 sub normalize_inferred_part_number {

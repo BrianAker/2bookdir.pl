@@ -23,7 +23,7 @@ ok(defined $fixture_m4b && -f $fixture_m4b, 'fixture m4b exists');
 
 my ($exit_help, $out_help, $err_help) = run_cmd('perl', $script, '--help');
 is($exit_help, 0, '--help exits successfully');
-like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--as-is\] \[--reverse\] \[--has-subtitle\] \[--series SERIES\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
+like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--as-is\] \[--reverse\] \[--has-subtitle\] \[--series SERIES\] \[--append-title TEXT\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
 is($err_help, '', 'help does not write stderr');
 
 my ($exit_version, $out_version, $err_version) = run_cmd('perl', $script, '--version');
@@ -149,6 +149,16 @@ is($err_spaced_part, '', 'spaced filename with part does not write stderr');
 like($out_spaced_part, qr/^Moved: Frog God\.m4b -> Vol\. 2 - Frog God\/Frog God\.m4b$/m, 'spaced filename with part output includes destination');
 like($out_spaced_part, qr/^Title: Frog God$/m, 'volume output includes title summary line');
 like($out_spaced_part, qr/^Volume: 2$/m, 'volume output includes volume summary line');
+
+copy_single_audio_fixture('m4b', 'Foo Dog.m4b');
+my ($exit_append_title, $out_append_title, $err_append_title) = run_cmd('perl', $script, '--apend-title', '(The Dogawg)', 'Foo Dog.m4b', '2');
+is($exit_append_title, 0, '--append-title alias appends text to resolved title');
+ok(-d 'Vol. 2 - Foo Dog (The Dogawg)', '--append-title creates volume directory using appended title');
+ok(-f File::Spec->catfile('Vol. 2 - Foo Dog (The Dogawg)', 'Foo Dog (The Dogawg).m4b'), '--append-title renames single audio file using appended title');
+is($err_append_title, '', '--append-title case does not write stderr');
+like($out_append_title, qr/^Moved: Foo Dog\.m4b -> Vol\. 2 - Foo Dog \(The Dogawg\)\/Foo Dog \(The Dogawg\)\.m4b$/m, '--append-title output includes expected destination');
+like($out_append_title, qr/^Title: Foo Dog \(The Dogawg\)$/m, '--append-title output includes appended title summary');
+like($out_append_title, qr/^Volume: 2$/m, '--append-title output includes volume summary');
 
 copy_single_audio_fixture('m4b', 'Frog God.m4b');
 my ($exit_spaced_decimal, $out_spaced_decimal, $err_spaced_decimal) = run_cmd('perl', $script, 'Frog', 'God.m4b', '2.1');
@@ -690,6 +700,18 @@ is(read_file(File::Spec->catfile('Vol. 4 - Bundle', 'cover.jpg')), 'album-image'
 is($err_dir_already_named, '', 'already-normalized directory writes no stderr');
 like($out_dir_already_named, qr/^Title: Bundle$/m, 'already-normalized directory output includes title summary');
 like($out_dir_already_named, qr/^Volume: 4$/m, 'already-normalized directory output includes volume summary');
+
+remove_tree('Vol. 2 - Foo Dog (The Dogawg)');
+mkdir 'Vol. 2 - Foo Dog (The Dogawg)' or die "failed to create fixture dir 'Vol. 2 - Foo Dog (The Dogawg)': $!";
+copy_single_audio_fixture('m4b', File::Spec->catfile('Vol. 2 - Foo Dog (The Dogawg)', 'book.m4b'));
+my ($exit_dir_append_title_named, $out_dir_append_title_named, $err_dir_append_title_named) = run_cmd('perl', $script, 'Vol. 2 - Foo Dog (The Dogawg)');
+is($exit_dir_append_title_named, 0, 'already-normalized appended-title directory with single audio succeeds');
+ok(-d 'Vol. 2 - Foo Dog (The Dogawg)', 'already-normalized appended-title directory remains in place');
+ok(-f File::Spec->catfile('Vol. 2 - Foo Dog (The Dogawg)', 'Foo Dog (The Dogawg).m4b'), 'already-normalized appended-title directory renames single audio to title');
+ok(!-f File::Spec->catfile('Vol. 2 - Foo Dog (The Dogawg)', 'book.m4b'), 'already-normalized appended-title directory removes old single-audio filename');
+is($err_dir_append_title_named, '', 'already-normalized appended-title directory does not write stderr');
+like($out_dir_append_title_named, qr/^Title: Foo Dog \(The Dogawg\)$/m, 'already-normalized appended-title output includes title summary');
+like($out_dir_append_title_named, qr/^Volume: 2$/m, 'already-normalized appended-title output includes volume summary');
 
 mkdir 'The Fool (US Version)' or die "failed to create fixture dir 'The Fool (US Version)': $!";
 copy_single_audio_fixture('m4b', File::Spec->catfile('The Fool (US Version)', 'The Fool [US Version].m4b'));
