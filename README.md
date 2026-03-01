@@ -56,6 +56,10 @@ inferred as volume/title sources:
 - `02 - Dog God.mp3` -> volume `2`, title `Dog God`
 - `02 Fruppy Goop.mp3` -> volume `2`, title `Fruppy Goop` (unless `--as-is`)
 
+Before parsing, source-name decoding is applied:
+- `__` becomes `꞉` (Modifier Letter Colon)
+- `_` becomes a space
+
 For dash-split names (`A - B - C` and `YEAR - A - B - C`), inferred metadata
 supports `author`, `series`, `title`, and optional `year`. In these cases:
 - `author` is written with `tone --meta-artist`

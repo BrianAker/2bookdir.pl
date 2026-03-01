@@ -320,6 +320,33 @@ ok(-f File::Spec->catfile('Vol. 101 - Cats', 'Cats.mp3'), 'single audio file is 
 is($err_inferred_numeric_prefix, '', 'inferred numeric-prefix move does not write stderr');
 like($out_inferred_numeric_prefix, qr/^Moved: 101 Cats\.mp3 -> Vol\. 101 - Cats\/Cats\.mp3$/m, 'inferred numeric-prefix output includes destination');
 
+copy_single_audio_fixture('mp3', 'Foo__Bar_Baz.mp3');
+my ($exit_decode_colon_space, $out_decode_colon_space, $err_decode_colon_space) = run_cmd('perl', $script, 'Foo__Bar_Baz.mp3');
+is($exit_decode_colon_space, 0, 'book_file decode converts double underscore to modifier-letter-colon and underscore to space');
+ok(-d 'Foo꞉Bar Baz', 'book_file decode creates expected directory name');
+ok(-f File::Spec->catfile('Foo꞉Bar Baz', 'Foo__Bar_Baz.mp3'), 'book_file decode keeps original source filename');
+is($err_decode_colon_space, '', 'book_file decode case does not write stderr');
+like($out_decode_colon_space, qr/^Moved: Foo__Bar_Baz\.mp3 -> Foo꞉Bar Baz\/Foo__Bar_Baz\.mp3$/m, 'book_file decode output includes destination path');
+unlike($out_decode_colon_space, qr/^Subtitle:/m, 'book_file decode output does not include subtitle');
+
+copy_single_audio_fixture('mp3', '01__Dog_Gone.mp3');
+my ($exit_decode_with_volume, $out_decode_with_volume, $err_decode_with_volume) = run_cmd('perl', $script, '01__Dog_Gone.mp3');
+is($exit_decode_with_volume, 0, 'book_file decode works before numeric-prefix volume inference');
+ok(-d '01꞉Dog Gone', 'book_file decode + inference creates expected directory');
+ok(-f File::Spec->catfile('01꞉Dog Gone', '01__Dog_Gone.mp3'), 'book_file decode + inference keeps original source filename');
+is($err_decode_with_volume, '', 'book_file decode + inference case does not write stderr');
+like($out_decode_with_volume, qr/^Moved: 01__Dog_Gone\.mp3 -> 01꞉Dog Gone\/01__Dog_Gone\.mp3$/m, 'book_file decode + inference output includes expected move line');
+unlike($out_decode_with_volume, qr/^Subtitle:/m, 'book_file decode + inference output does not include decoded subtitle');
+
+copy_single_audio_fixture('mp3', 'Sky꞉Blue.mp3');
+my ($exit_modifier_colon_input, $out_modifier_colon_input, $err_modifier_colon_input) = run_cmd('perl', $script, 'Sky꞉Blue.mp3');
+is($exit_modifier_colon_input, 0, 'book_file with modifier-letter-colon title succeeds');
+ok(-d 'Sky꞉Blue', 'modifier-letter-colon title creates expected directory');
+ok(-f File::Spec->catfile('Sky꞉Blue', 'Sky꞉Blue.mp3'), 'modifier-letter-colon title keeps expected filename');
+is($err_modifier_colon_input, '', 'modifier-letter-colon title does not write stderr');
+like($out_modifier_colon_input, qr/^Moved: Sky꞉Blue\.mp3 -> Sky꞉Blue\/Sky꞉Blue\.mp3$/m, 'modifier-letter-colon title output includes expected move line');
+unlike($out_modifier_colon_input, qr/^Subtitle:/m, 'modifier-letter-colon title does not trigger subtitle parsing');
+
 copy_single_audio_fixture('m4b', '101.1 Cats.m4b');
 my ($exit_inferred_decimal_numeric_prefix, $out_inferred_decimal_numeric_prefix, $err_inferred_decimal_numeric_prefix) = run_cmd('perl', $script, '101.1 Cats.m4b');
 is($exit_inferred_decimal_numeric_prefix, 0, 'inferred decimal numeric-prefix source file name succeeds');

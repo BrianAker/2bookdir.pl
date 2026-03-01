@@ -201,6 +201,7 @@ sub build_dir_name {
     if (-f $file && !$title_from_arg) {
         $resolved_title =~ s/\.[^.]+$//;
     }
+    $resolved_title = decode_book_file_name($resolved_title);
     $resolved_title =~ s/^\s+|\s+$//g;
     $resolved_title =~ s/\s+/ /g;
 
@@ -224,6 +225,7 @@ sub resolve_title {
     if (-f $file && !$title_from_arg) {
         $resolved =~ s/\.[^.]+$//;
     }
+    $resolved = decode_book_file_name($resolved);
     $resolved =~ s/^\s+|\s+$//g;
     $resolved =~ s/\s+/ /g;
     return sanitize($resolved);
@@ -913,6 +915,7 @@ sub parse_args {
         if (-f $file) {
             $source_name =~ s/\.[^.]+\z//;
         }
+        $source_name = decode_book_file_name($source_name);
         { # PARSE UNABRIDGED BLOCK
             if ($source_name =~ /\(UNABRIDGED\)\s*$/i) {
                 $source_name =~ s/\s*\(UNABRIDGED\)\s*$//i;
@@ -1105,6 +1108,14 @@ sub parse_args {
     }
 
     return ($file, $part, $title, \%inferred_meta);
+}
+
+sub decode_book_file_name {
+    my ($value) = @_;
+    return '' if !defined $value;
+    $value =~ s/__/꞉/g;
+    $value =~ s/_/ /g;
+    return $value;
 }
 
 sub append_title_suffix {
