@@ -21,6 +21,7 @@ my $reverse = 0;
 my $show_version = 0;
 my $checkpoint = 0;
 my $has_subtitle = 0;
+my $dry_run = 0;
 my $series_override;
 my $append_title;
 GetOptions(
@@ -31,6 +32,7 @@ GetOptions(
     'version' => \$show_version,
     'checkpoint' => \$checkpoint,
     'has-subtitle' => \$has_subtitle,
+    'dry-run' => \$dry_run,
     'series=s' => \$series_override,
     'append-title=s' => \$append_title,
     'apend-title=s'  => \$append_title,
@@ -84,8 +86,10 @@ my $ok = eval {
         }
 
         if (!$same_dir_target) {
-            move($book_file, $dest_dir)
-              or die "Error: failed to move '$book_file' to '$dest_dir': $!\n";
+            if (!$dry_run) {
+                move($book_file, $dest_dir)
+                  or die "Error: failed to move '$book_file' to '$dest_dir': $!\n";
+            }
         }
 
         maybe_rename_single_audio(
@@ -100,14 +104,16 @@ my $ok = eval {
             asin        => $inferred_meta->{asin},
             subtitle    => $inferred_meta->{subtitle},
             audio_files => \@audio_files,
+            dry_run     => $dry_run,
         );
         maybe_set_multi_audio_album(
             source_root => $book_file,
             dest_root   => $dest_dir,
             album       => $resolved_title,
             audio_files => \@audio_files,
+            dry_run     => $dry_run,
         );
-        maybe_create_cover_image($dest_dir);
+        maybe_create_cover_image($dest_dir, $dry_run);
 
         emit_success(
             json_output => $json_output,
@@ -128,7 +134,7 @@ my $ok = eval {
     if (-e $dir_name && !-d $dir_name) {
         die "Error: '$dir_name' exists and is not a directory.\n";
     }
-    if (!-d $dir_name) {
+    if (!-d $dir_name && !$dry_run) {
         make_path($dir_name) or die "Error: failed to create directory '$dir_name': $!\n";
     }
 
@@ -142,10 +148,12 @@ my $ok = eval {
         die "Error: destination file '$dest_file' already exists.\n";
     }
 
-    move($book_file, $dest_file)
-      or die "Error: failed to move '$book_file' to '$dest_file': $!\n";
+    if (!$dry_run) {
+        move($book_file, $dest_file)
+          or die "Error: failed to move '$book_file' to '$dest_file': $!\n";
+    }
 
-    if ($audio_count == 1) {
+    if ($audio_count == 1 && !$dry_run) {
         tone_set_audio_metadata(
             path        => $dest_file,
             album       => $resolved_title,
@@ -377,6 +385,7 @@ sub maybe_rename_single_audio {
 
     return if !defined $title || $title eq '';
     return if @$audio_files != 1;
+    return if $args{dry_run};
 
     my $source_root = File::Spec->rel2abs($args{source_root});
     my $dest_root = File::Spec->rel2abs($args{dest_root});
@@ -423,6 +432,7 @@ sub maybe_set_multi_audio_album {
 
     return if !defined $album || $album eq '';
     return if @$audio_files <= 1;
+    return if $args{dry_run};
 
     my $source_root = File::Spec->rel2abs($args{source_root});
     my $dest_root = File::Spec->rel2abs($args{dest_root});
@@ -441,8 +451,9 @@ sub maybe_set_multi_audio_album {
 }
 
 sub maybe_create_cover_image {
-    my ($dir) = @_;
+    my ($dir, $dry_run) = @_;
     return if !defined $dir || !-d $dir;
+    return if $dry_run;
 
     opendir my $dh, $dir or die "Error: failed to open directory '$dir': $!\n";
     my @entries = readdir $dh;
@@ -841,7 +852,7 @@ sub usage {
     my ($exit_code) = @_;
 
     print <<'USAGE';
-Usage: 2bookdir.pl [--help] [--version] [--json] [--as-is] [--reverse] [--has-subtitle] [--series SERIES] [--append-title TEXT] book_file [part-number] [book title]
+Usage: 2bookdir.pl [--help] [--version] [--json] [--dry-run] [--as-is] [--reverse] [--has-subtitle] [--series SERIES] [--append-title TEXT] book_file [part-number] [book title]
 
 Arguments:
   book_file     Required. Path to the source book file or directory.
@@ -849,6 +860,8 @@ Arguments:
                 dash-split inference formats.
   --has-subtitle Optional. For dash-split inference, treat the last segment
                 as subtitle metadata and remove it from title parsing.
+  --dry-run     Optional. Simulate operations and print normal text/JSON
+                output without modifying files or metadata.
   --series      Optional. Explicit series name. If the series value ends with
                 a number, that number is used as inferred volume.
   --append-title Optional. Appends TEXT to the resolved title separated by a

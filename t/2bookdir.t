@@ -23,7 +23,7 @@ ok(defined $fixture_m4b && -f $fixture_m4b, 'fixture m4b exists');
 
 my ($exit_help, $out_help, $err_help) = run_cmd('perl', $script, '--help');
 is($exit_help, 0, '--help exits successfully');
-like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--as-is\] \[--reverse\] \[--has-subtitle\] \[--series SERIES\] \[--append-title TEXT\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
+like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--dry-run\] \[--as-is\] \[--reverse\] \[--has-subtitle\] \[--series SERIES\] \[--append-title TEXT\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
 is($err_help, '', 'help does not write stderr');
 
 my ($exit_version, $out_version, $err_version) = run_cmd('perl', $script, '--version');
@@ -55,6 +55,27 @@ is($success_json->{response}, 'success', 'json success reports success response'
 is($success_json->{meta}->{title}, 'Json Dog', 'json success includes title in meta');
 is($success_json->{meta}->{volume}, '3', 'json success includes volume in meta');
 ok(!defined $success_json->{meta}->{year}, 'json success leaves year undefined when not present');
+
+copy_single_audio_fixture('m4b', 'Dry Run Dog.m4b');
+my ($exit_dry_run, $out_dry_run, $err_dry_run) = run_cmd('perl', $script, '--dry-run', 'Dry Run Dog.m4b', '2');
+is($exit_dry_run, 0, '--dry-run file source exits zero');
+ok(-f 'Dry Run Dog.m4b', '--dry-run leaves source file in place');
+ok(!-d 'Vol. 2 - Dry Run Dog', '--dry-run does not create destination directory');
+is($err_dry_run, '', '--dry-run file source writes no stderr');
+like($out_dry_run, qr/^Moved: Dry Run Dog\.m4b -> Vol\. 2 - Dry Run Dog\/Dry Run Dog\.m4b$/m, '--dry-run file source prints expected move line');
+like($out_dry_run, qr/^Title: Dry Run Dog$/m, '--dry-run file source prints title summary');
+like($out_dry_run, qr/^Volume: 2$/m, '--dry-run file source prints volume summary');
+
+write_file('dry-run-json.epub', 'dummy');
+my ($exit_dry_run_json, $out_dry_run_json, $err_dry_run_json) = run_cmd('perl', $script, '--dry-run', '--json', 'dry-run-json.epub', '4');
+is($exit_dry_run_json, 0, '--dry-run --json exits zero');
+ok(-f 'dry-run-json.epub', '--dry-run --json leaves source file in place');
+ok(!-d 'Vol. 4 - dry-run-json', '--dry-run --json does not create destination directory');
+is($err_dry_run_json, '', '--dry-run --json writes no stderr');
+my $dry_run_json = decode_json($out_dry_run_json);
+is($dry_run_json->{response}, 'success', '--dry-run --json reports success');
+is($dry_run_json->{meta}->{title}, 'dry-run-json', '--dry-run --json reports inferred title');
+is($dry_run_json->{meta}->{volume}, '4', '--dry-run --json reports inferred volume');
 
 mkdir '03. Footown - From the the Shadows'
   or die "failed to create fixture dir '03. Footown - From the the Shadows': $!";
