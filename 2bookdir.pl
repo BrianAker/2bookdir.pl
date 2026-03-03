@@ -910,11 +910,29 @@ sub parse_args {
     # If only book_file is provided and it starts with "NUMBER - TITLE",
     # infer part-number and title from the source name.
     if (!defined $part && !defined $title) {
-        my $source_name = basename($file);
+        my $raw_source_name = basename($file);
         my $source_name_modified = 0;
         if (-f $file) {
-            $source_name =~ s/\.[^.]+\z//;
+            $raw_source_name =~ s/\.[^.]+\z//;
         }
+        if (!$as_is_mode) {
+            my $marker_count = () = $raw_source_name =~ /(?<=\S)_\s/g;
+            if ($marker_count == 1 && $raw_source_name =~ /^(.*\S)_\s(.+)$/) {
+                my $split_title = trim(decode_book_file_name($1));
+                my $split_subtitle = trim(decode_book_file_name($2));
+                if ($split_title ne '' && $split_subtitle ne '') {
+                    $title = $split_title;
+                    $inferred_meta{subtitle} = $split_subtitle if !defined $inferred_meta{subtitle};
+                    $source_name_modified = 1;
+                    infer_from_subtitle_segment(
+                        subtitle => $split_subtitle,
+                        part_ref => \$part,
+                        meta_ref => \%inferred_meta,
+                    );
+                }
+            }
+        }
+        my $source_name = $raw_source_name;
         $source_name = decode_book_file_name($source_name);
         { # PARSE UNABRIDGED BLOCK
             if ($source_name =~ /\(UNABRIDGED\)\s*$/i) {
@@ -1116,6 +1134,52 @@ sub decode_book_file_name {
     $value =~ s/__/꞉/g;
     $value =~ s/_/ /g;
     return $value;
+}
+
+sub infer_from_subtitle_segment {
+    my (%args) = @_;
+    my $subtitle = $args{subtitle};
+    my $part_ref = $args{part_ref};
+    my $meta_ref = $args{meta_ref};
+    return if !defined $subtitle || $subtitle eq '';
+
+    my $scan = trim($subtitle);
+    return if $scan eq '';
+
+    if (!defined $meta_ref->{narrators} && $scan =~ /\{([^{}]+)\}\s*$/) {
+        my $narrator = trim($1);
+        $meta_ref->{narrators} = $narrator if $narrator ne '';
+    }
+
+    my $scan_no_narrator = $scan;
+    $scan_no_narrator =~ s/\s*\{[^{}]+\}\s*$//;
+    $scan_no_narrator = trim($scan_no_narrator);
+
+    if (!defined $meta_ref->{year}) {
+        my $year = parse_year_token($scan_no_narrator);
+        if (!defined $year && $scan_no_narrator =~ /[\(\[](\d{4})[\)\]]\s*$/) {
+            $year = $1;
+        }
+        if (!defined $year && $scan_no_narrator =~ /\b(\d{4})\s*$/) {
+            $year = $1;
+        }
+        $meta_ref->{year} = $year if defined $year;
+    }
+
+    my $scan_for_volume = $scan_no_narrator;
+    $scan_for_volume =~ s/\s*[\(\[]\d{4}[\)\]]\s*$//;
+    $scan_for_volume =~ s/\b\d{4}\s*$//;
+    $scan_for_volume = trim($scan_for_volume);
+
+    if (!defined $$part_ref) {
+        my ($volume, undef) = parse_volume_segment($scan_for_volume);
+        if (defined $volume) {
+            $$part_ref = $volume;
+        } else {
+            my $suffix_volume = infer_suffix_volume_number($scan_for_volume);
+            $$part_ref = $suffix_volume if defined $suffix_volume;
+        }
+    }
 }
 
 sub append_title_suffix {

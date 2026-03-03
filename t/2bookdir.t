@@ -347,6 +347,35 @@ is($err_modifier_colon_input, '', 'modifier-letter-colon title does not write st
 like($out_modifier_colon_input, qr/^Moved: Sky꞉Blue\.mp3 -> Sky꞉Blue\/Sky꞉Blue\.mp3$/m, 'modifier-letter-colon title output includes expected move line');
 unlike($out_modifier_colon_input, qr/^Subtitle:/m, 'modifier-letter-colon title does not trigger subtitle parsing');
 
+copy_single_audio_fixture('mp3', 'Split One_ Volume 3.mp3');
+my ($exit_underscore_subtitle_volume, $out_underscore_subtitle_volume, $err_underscore_subtitle_volume) = run_cmd('perl', $script, 'Split One_ Volume 3.mp3');
+is($exit_underscore_subtitle_volume, 0, 'single "_ " subtitle split infers volume from subtitle');
+ok(-d 'Vol. 3 - Split One', 'single "_ " subtitle split volume case creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 3 - Split One', 'Split One.mp3'), 'single "_ " subtitle split volume case renames single audio to parsed title');
+is($err_underscore_subtitle_volume, '', 'single "_ " subtitle split volume case does not write stderr');
+like($out_underscore_subtitle_volume, qr/^Subtitle: Volume 3$/m, 'single "_ " subtitle split volume case prints subtitle');
+like($out_underscore_subtitle_volume, qr/^Volume: 3$/m, 'single "_ " subtitle split volume case infers volume from subtitle');
+
+copy_single_audio_fixture('mp3', 'Split Two_ [1994].mp3');
+my ($exit_underscore_subtitle_year, $out_underscore_subtitle_year, $err_underscore_subtitle_year) = run_cmd('perl', $script, 'Split Two_ [1994].mp3');
+is($exit_underscore_subtitle_year, 0, 'single "_ " subtitle split infers year from subtitle');
+ok(-d '1994 - Split Two', 'single "_ " subtitle split year case creates expected year-prefixed directory');
+ok(-f File::Spec->catfile('1994 - Split Two', 'Split Two.mp3'), 'single "_ " subtitle split year case renames single audio to parsed title');
+is($err_underscore_subtitle_year, '', 'single "_ " subtitle split year case does not write stderr');
+like($out_underscore_subtitle_year, qr/^Subtitle: \[1994\]$/m, 'single "_ " subtitle split year case prints subtitle');
+like($out_underscore_subtitle_year, qr/^Year: 1994$/m, 'single "_ " subtitle split year case infers year from subtitle');
+
+copy_single_audio_fixture('mp3', 'Split Three_ Volume 4 [1998] {Sam Reader}.mp3');
+my ($exit_underscore_subtitle_mixed, $out_underscore_subtitle_mixed, $err_underscore_subtitle_mixed) = run_cmd('perl', $script, 'Split Three_ Volume 4 [1998] {Sam Reader}.mp3');
+is($exit_underscore_subtitle_mixed, 0, 'single "_ " subtitle split infers volume/year/narrators from subtitle');
+ok(-d 'Vol. 4 - Split Three', 'single "_ " subtitle split mixed metadata case creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 4 - Split Three', 'Split Three.mp3'), 'single "_ " subtitle split mixed metadata case renames single audio to parsed title');
+is($err_underscore_subtitle_mixed, '', 'single "_ " subtitle split mixed metadata case does not write stderr');
+like($out_underscore_subtitle_mixed, qr/^Subtitle: Volume 4 \[1998\] \{Sam Reader\}$/m, 'single "_ " subtitle split mixed metadata case prints subtitle');
+like($out_underscore_subtitle_mixed, qr/^Volume: 4$/m, 'single "_ " subtitle split mixed metadata case infers volume from subtitle');
+like($out_underscore_subtitle_mixed, qr/^Year: 1998$/m, 'single "_ " subtitle split mixed metadata case infers year from subtitle');
+like($out_underscore_subtitle_mixed, qr/^Narrators: Sam Reader$/m, 'single "_ " subtitle split mixed metadata case infers narrators from subtitle');
+
 copy_single_audio_fixture('m4b', '101.1 Cats.m4b');
 my ($exit_inferred_decimal_numeric_prefix, $out_inferred_decimal_numeric_prefix, $err_inferred_decimal_numeric_prefix) = run_cmd('perl', $script, '101.1 Cats.m4b');
 is($exit_inferred_decimal_numeric_prefix, 0, 'inferred decimal numeric-prefix source file name succeeds');
