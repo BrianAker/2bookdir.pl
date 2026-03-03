@@ -255,12 +255,12 @@ copy_single_audio_fixture('mp3', '1993 - Volume 3 - Asin Foo [B00TEST123].mp3');
 my ($exit_checkpoint_asin, $out_checkpoint_asin, $err_checkpoint_asin) = run_cmd('perl', $script, '--checkpoint', '1993 - Volume 3 - Asin Foo [B00TEST123].mp3');
 is($exit_checkpoint_asin, 0, '--checkpoint with ASIN/year/volume token succeeds');
 ok(-d 'Vol. 3 - Asin Foo', 'checkpoint ASIN case creates expected directory');
-ok(-f File::Spec->catfile('Vol. 3 - Asin Foo', 'Asin Foo.mp3'), 'checkpoint ASIN case renames audio file to title');
+ok(-f File::Spec->catfile('Vol. 3 - Asin Foo', 'Asin Foo [B00TEST123].mp3'), 'checkpoint ASIN case renames audio file to title and reapplies bracket segments');
 is($err_checkpoint_asin, '', 'checkpoint ASIN case does not write stderr');
 like($out_checkpoint_asin, qr/^CHECKPOINT: 1: ASIN$/m, 'checkpoint ASIN case output includes ASIN checkpoint marker');
 like($out_checkpoint_asin, qr/^CHECKPOINT: 1: YEAR$/m, 'checkpoint ASIN case output includes year checkpoint marker');
 like($out_checkpoint_asin, qr/^CHECKPOINT: 2: VOLUME$/m, 'checkpoint ASIN case output includes volume checkpoint marker');
-like($out_checkpoint_asin, qr/^Moved: 1993 - Volume 3 - Asin Foo \[B00TEST123\]\.mp3 -> Vol\. 3 - Asin Foo\/Asin Foo\.mp3$/m, 'checkpoint ASIN case output includes expected move line');
+like($out_checkpoint_asin, qr/^Moved: 1993 - Volume 3 - Asin Foo \[B00TEST123\]\.mp3 -> Vol\. 3 - Asin Foo\/Asin Foo \[B00TEST123\]\.mp3$/m, 'checkpoint ASIN case output includes expected move line');
 like($out_checkpoint_asin, qr/^Title: Asin Foo$/m, 'checkpoint ASIN case output includes title summary line');
 like($out_checkpoint_asin, qr/^Volume: 3$/m, 'checkpoint ASIN case output includes volume summary line');
 like($out_checkpoint_asin, qr/^Year: 1993$/m, 'checkpoint ASIN case output includes year summary line');
@@ -292,7 +292,22 @@ is($asin_json->{meta}->{title}, 'Foo Json', 'json ASIN year-inferred case report
 ok(!defined $asin_json->{meta}->{volume}, 'json ASIN year-inferred case does not set volume');
 is($asin_json->{meta}->{year}, '1993', 'json ASIN year-inferred case reports inferred year');
 is($asin_json->{meta}->{asin}, 'B00TEST124', 'json ASIN year-inferred case reports parsed ASIN');
-like(tone_dump_json(File::Spec->catfile('1993 - Foo Json', 'Foo Json.mp3')), qr/"additionalFields"\s*:\s*\{[\s\S]*?"[^"]*ASIN"\s*:\s*"B00TEST124"/i, 'json ASIN year-inferred case writes AUDIBLE_ASIN metadata');
+like(tone_dump_json(File::Spec->catfile('1993 - Foo Json', 'Foo Json [B00TEST124].mp3')), qr/"additionalFields"\s*:\s*\{[\s\S]*?"[^"]*ASIN"\s*:\s*"B00TEST124"/i, 'json ASIN year-inferred case writes AUDIBLE_ASIN metadata');
+
+copy_single_audio_fixture('m4b', 'Mine Mine 3 [B0AAAP75QM] [113] [44100].m4b');
+my ($exit_multi_bracket_asin, $out_multi_bracket_asin, $err_multi_bracket_asin) = run_cmd(
+    'perl',
+    $script,
+    'Mine Mine 3 [B0AAAP75QM] [113] [44100].m4b'
+);
+is($exit_multi_bracket_asin, 0, 'single audio with multiple bracket segments parses ASIN and reapplies bracket segments');
+ok(-d 'Vol. 3 - Mine Mine 3', 'single audio with multiple bracket segments creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 3 - Mine Mine 3', 'Mine Mine 3 [B0AAAP75QM] [113] [44100].m4b'), 'single audio with multiple bracket segments renames file with all bracket segments reapplied');
+is($err_multi_bracket_asin, '', 'single audio with multiple bracket segments does not write stderr');
+like($out_multi_bracket_asin, qr/^Moved: Mine Mine 3 \[B0AAAP75QM\] \[113\] \[44100\]\.m4b -> Vol\. 3 - Mine Mine 3\/Mine Mine 3 \[B0AAAP75QM\] \[113\] \[44100\]\.m4b$/m, 'single audio with multiple bracket segments output includes expected move line');
+like($out_multi_bracket_asin, qr/^Title: Mine Mine 3$/m, 'single audio with multiple bracket segments output includes parsed title');
+like($out_multi_bracket_asin, qr/^Volume: 3$/m, 'single audio with multiple bracket segments output includes inferred volume');
+like($out_multi_bracket_asin, qr/^ASIN: B0AAAP75QM$/m, 'single audio with multiple bracket segments output includes parsed ASIN');
 
 copy_single_audio_fixture('mp3', '1993 - Plain Foo Json.mp3');
 my ($exit_year_json, $out_year_json, $err_year_json) = run_cmd('perl', $script, '--json', '1993 - Plain Foo Json.mp3');
@@ -360,7 +375,7 @@ copy_single_audio_fixture('mp3', 'Split Two_ [1994].mp3');
 my ($exit_underscore_subtitle_year, $out_underscore_subtitle_year, $err_underscore_subtitle_year) = run_cmd('perl', $script, 'Split Two_ [1994].mp3');
 is($exit_underscore_subtitle_year, 0, 'single "_ " subtitle split infers year from subtitle');
 ok(-d '1994 - Split Two', 'single "_ " subtitle split year case creates expected year-prefixed directory');
-ok(-f File::Spec->catfile('1994 - Split Two', 'Split Two.mp3'), 'single "_ " subtitle split year case renames single audio to parsed title');
+ok(-f File::Spec->catfile('1994 - Split Two', 'Split Two [1994].mp3'), 'single "_ " subtitle split year case renames single audio and reapplies bracket segments');
 is($err_underscore_subtitle_year, '', 'single "_ " subtitle split year case does not write stderr');
 like($out_underscore_subtitle_year, qr/^Subtitle: \[1994\]$/m, 'single "_ " subtitle split year case prints subtitle');
 like($out_underscore_subtitle_year, qr/^Year: 1994$/m, 'single "_ " subtitle split year case infers year from subtitle');
@@ -369,7 +384,7 @@ copy_single_audio_fixture('mp3', 'Split Three_ Volume 4 [1998] {Sam Reader}.mp3'
 my ($exit_underscore_subtitle_mixed, $out_underscore_subtitle_mixed, $err_underscore_subtitle_mixed) = run_cmd('perl', $script, 'Split Three_ Volume 4 [1998] {Sam Reader}.mp3');
 is($exit_underscore_subtitle_mixed, 0, 'single "_ " subtitle split infers volume/year/narrators from subtitle');
 ok(-d 'Vol. 4 - Split Three', 'single "_ " subtitle split mixed metadata case creates expected volume directory');
-ok(-f File::Spec->catfile('Vol. 4 - Split Three', 'Split Three.mp3'), 'single "_ " subtitle split mixed metadata case renames single audio to parsed title');
+ok(-f File::Spec->catfile('Vol. 4 - Split Three', 'Split Three [1998].mp3'), 'single "_ " subtitle split mixed metadata case renames single audio and reapplies bracket segments');
 is($err_underscore_subtitle_mixed, '', 'single "_ " subtitle split mixed metadata case does not write stderr');
 like($out_underscore_subtitle_mixed, qr/^Subtitle: Volume 4 \[1998\] \{Sam Reader\}$/m, 'single "_ " subtitle split mixed metadata case prints subtitle');
 like($out_underscore_subtitle_mixed, qr/^Volume: 4$/m, 'single "_ " subtitle split mixed metadata case infers volume from subtitle');
@@ -591,7 +606,7 @@ copy_single_audio_fixture('mp3', 'Wizards First Rule [1994].mp3');
 my ($exit_wrapped_year_suffix, $out_wrapped_year_suffix, $err_wrapped_year_suffix) = run_cmd('perl', $script, 'Wizards First Rule [1994].mp3');
 is($exit_wrapped_year_suffix, 0, 'bracketed year suffix infers year and title');
 ok(-d '1994 - Wizards First Rule', 'bracketed year suffix creates publishing-date directory');
-ok(-f File::Spec->catfile('1994 - Wizards First Rule', 'Wizards First Rule.mp3'), 'bracketed year suffix renames audio file to inferred title');
+ok(-f File::Spec->catfile('1994 - Wizards First Rule', 'Wizards First Rule [1994].mp3'), 'bracketed year suffix renames audio file and reapplies bracket segments');
 is($err_wrapped_year_suffix, '', 'bracketed year suffix does not write stderr');
 like($out_wrapped_year_suffix, qr/^Title: Wizards First Rule$/m, 'bracketed year suffix output includes title summary');
 like($out_wrapped_year_suffix, qr/^Year: 1994$/m, 'bracketed year suffix output includes year summary');
@@ -658,10 +673,10 @@ my ($exit_inline_subtitle, $out_inline_subtitle, $err_inline_subtitle) = run_cmd
 );
 is($exit_inline_subtitle, 0, 'inline title subtitle marker with bracketed year succeeds');
 ok(-d '2024 - So You Want to Breed Dogs!', 'inline subtitle marker with bracketed year creates expected publishing-date directory');
-ok(-f File::Spec->catfile('2024 - So You Want to Breed Dogs!', 'So You Want to Breed Dogs!.m4b'), 'inline subtitle marker renames audio file to parsed title');
+ok(-f File::Spec->catfile('2024 - So You Want to Breed Dogs!', 'So You Want to Breed Dogs! [2024].m4b'), 'inline subtitle marker renames audio file and reapplies bracket segments');
 is(
     tone_meta(
-        File::Spec->catfile('2024 - So You Want to Breed Dogs!', 'So You Want to Breed Dogs!.m4b'),
+        File::Spec->catfile('2024 - So You Want to Breed Dogs!', 'So You Want to Breed Dogs! [2024].m4b'),
         '$.meta.additionalFields.subtitle'
     ),
     'Lessons from the Lab to the shit-zu',

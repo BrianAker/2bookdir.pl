@@ -92,6 +92,7 @@ my $ok = eval {
             source_root => $book_file,
             dest_root   => $dest_dir,
             title       => $resolved_title,
+            bracket_segments => $inferred_meta->{bracket_segments},
             part_number => $part_number,
             author      => $inferred_meta->{author},
             series      => $inferred_meta->{series},
@@ -131,7 +132,12 @@ my $ok = eval {
         make_path($dir_name) or die "Error: failed to create directory '$dir_name': $!\n";
     }
 
-    my $dest_file = "$dir_name/" . build_dest_name($book_file, $book_title, $audio_count);
+    my $dest_file = "$dir_name/" . build_dest_name(
+        $book_file,
+        $book_title,
+        $audio_count,
+        $inferred_meta->{bracket_segments},
+    );
     if (-e $dest_file) {
         die "Error: destination file '$dest_file' already exists.\n";
     }
@@ -311,7 +317,7 @@ sub emit_failure {
 }
 
 sub build_dest_name {
-    my ($file, $title, $audio_count) = @_;
+    my ($file, $title, $audio_count, $bracket_segments) = @_;
 
     my $source_name = basename($file);
     my $is_file = -f $file;
@@ -322,7 +328,7 @@ sub build_dest_name {
     }
 
     if (defined $title && length $title && $audio_count == 1) {
-        my $name = $title;
+        my $name = append_bracket_segments($title, $bracket_segments);
         $name =~ s/^\s+|\s+$//g;
         $name =~ s/\s+/ /g;
         $name = sanitize($name);
@@ -366,6 +372,7 @@ sub find_audio_files {
 sub maybe_rename_single_audio {
     my (%args) = @_;
     my $title = $args{title};
+    my $bracket_segments = $args{bracket_segments};
     my $audio_files = $args{audio_files} // [];
 
     return if !defined $title || $title eq '';
@@ -380,7 +387,7 @@ sub maybe_rename_single_audio {
     my ($ext) = $dest_audio =~ /(\.[^.]+)\z/;
     return if !defined $ext || $ext eq '';
 
-    my $name = $title;
+    my $name = append_bracket_segments($title, $bracket_segments);
     $name =~ s/^\s+|\s+$//g;
     $name =~ s/\s+/ /g;
     $name = sanitize($name);
@@ -943,12 +950,25 @@ sub parse_args {
             }
         }
         { # PARSE ASIN BLOCK
-            if ($source_name =~ /\[([B0][A-Z0-9]{9})\]\s*$/) {
-                $inferred_meta{asin} = $1;
-                $source_name =~ s/\s*\[[B0][A-Z0-9]{9}\]\s*$//;
+            my @bracket_segments = map { trim($_) } ($source_name =~ /\[([^\[\]]+)\]/g);
+            @bracket_segments = grep { $_ ne '' } @bracket_segments;
+            if (@bracket_segments) {
+                $inferred_meta{bracket_segments} = [@bracket_segments];
+                $source_name =~ s/\s*\[[^\[\]]+\]\s*//g;
                 $source_name = trim($source_name);
+                $source_name =~ s/\s+/ /g;
                 $source_name_modified = 1;
-                print "CHECKPOINT: 1: ASIN\n" if $checkpoint;
+
+                for my $segment (@bracket_segments) {
+                    if (!defined $inferred_meta{asin} && $segment =~ /^([B0][A-Z0-9]{9})$/) {
+                        $inferred_meta{asin} = $1;
+                        print "CHECKPOINT: 1: ASIN\n" if $checkpoint;
+                    }
+                    if (!defined $inferred_meta{year}) {
+                        my $parsed_year = parse_year_token($segment);
+                        $inferred_meta{year} = $parsed_year if defined $parsed_year;
+                    }
+                }
             }
         }
         { # PARSE NARRATOR BLOCK
@@ -1134,6 +1154,19 @@ sub decode_book_file_name {
     $value =~ s/__/꞉/g;
     $value =~ s/_/ /g;
     return $value;
+}
+
+sub append_bracket_segments {
+    my ($name, $segments) = @_;
+    return $name if !defined $name || $name eq '';
+    return $name if !defined $segments || ref($segments) ne 'ARRAY' || !@$segments;
+
+    my @normalized = map { trim($_) } @$segments;
+    @normalized = grep { $_ ne '' } @normalized;
+    return $name if !@normalized;
+
+    my $suffix = join(' ', map { "[$_]" } @normalized);
+    return "$name $suffix";
 }
 
 sub infer_from_subtitle_segment {
