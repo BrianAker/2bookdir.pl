@@ -412,6 +412,21 @@ like($out_underscore_subtitle_mixed, qr/^Volume: 4$/m, 'single "_ " subtitle spl
 like($out_underscore_subtitle_mixed, qr/^Year: 1998$/m, 'single "_ " subtitle split mixed metadata case infers year from subtitle');
 like($out_underscore_subtitle_mixed, qr/^Narrators: Sam Reader$/m, 'single "_ " subtitle split mixed metadata case infers narrators from subtitle');
 
+copy_single_audio_fixture('m4b', 'Master of Dogs_ A LitRPG Progression Fandom [B055855FAG].m4b');
+my ($exit_underscore_subtitle_asin, $out_underscore_subtitle_asin, $err_underscore_subtitle_asin) = run_cmd(
+    'perl',
+    $script,
+    'Master of Dogs_ A LitRPG Progression Fandom [B055855FAG].m4b'
+);
+is($exit_underscore_subtitle_asin, 0, 'single "_ " subtitle split with bracket ASIN infers title and keeps ASIN');
+ok(-d 'Master of Dogs', 'single "_ " subtitle split with bracket ASIN creates title directory');
+ok(-f File::Spec->catfile('Master of Dogs', 'Master of Dogs [B055855FAG].m4b'), 'single "_ " subtitle split with bracket ASIN renames single audio and reapplies bracket segment');
+is($err_underscore_subtitle_asin, '', 'single "_ " subtitle split with bracket ASIN does not write stderr');
+like($out_underscore_subtitle_asin, qr/^Moved: Master of Dogs_ A LitRPG Progression Fandom \[B055855FAG\]\.m4b -> Master of Dogs\/Master of Dogs \[B055855FAG\]\.m4b$/m, 'single "_ " subtitle split with bracket ASIN output includes expected move line');
+like($out_underscore_subtitle_asin, qr/^Title: Master of Dogs$/m, 'single "_ " subtitle split with bracket ASIN output includes parsed title');
+like($out_underscore_subtitle_asin, qr/^Subtitle: A LitRPG Progression Fandom$/m, 'single "_ " subtitle split with bracket ASIN output includes subtitle');
+like($out_underscore_subtitle_asin, qr/^ASIN: B055855FAG$/m, 'single "_ " subtitle split with bracket ASIN output includes parsed ASIN');
+
 copy_single_audio_fixture('m4b', '101.1 Cats.m4b');
 my ($exit_inferred_decimal_numeric_prefix, $out_inferred_decimal_numeric_prefix, $err_inferred_decimal_numeric_prefix) = run_cmd('perl', $script, '101.1 Cats.m4b');
 is($exit_inferred_decimal_numeric_prefix, 0, 'inferred decimal numeric-prefix source file name succeeds');

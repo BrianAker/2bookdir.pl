@@ -975,6 +975,13 @@ sub parse_args {
                 for my $segment (@bracket_segments) {
                     if (!defined $inferred_meta{asin} && $segment =~ /^([B0][A-Z0-9]{9})$/) {
                         $inferred_meta{asin} = $1;
+                        if (defined $inferred_meta{subtitle} && $inferred_meta{subtitle} ne '') {
+                            my $subtitle = $inferred_meta{subtitle};
+                            $subtitle =~ s/\s*\[\Q$segment\E\]\s*/ /g;
+                            $subtitle = trim($subtitle);
+                            $subtitle =~ s/\s+/ /g;
+                            $inferred_meta{subtitle} = $subtitle;
+                        }
                         print "CHECKPOINT: 1: ASIN\n" if $checkpoint;
                     }
                     if (!defined $inferred_meta{year}) {
