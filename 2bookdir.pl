@@ -949,7 +949,7 @@ sub parse_args {
                 print "CHECKPOINT: 1: UNABRIDGED\n";
             }
         }
-        { # PARSE ASIN BLOCK
+        { # PARSE SQUARE BLOCKS
             my @bracket_segments = map { trim($_) } ($source_name =~ /\[([^\[\]]+)\]/g);
             @bracket_segments = grep { $_ ne '' } @bracket_segments;
             if (@bracket_segments) {
