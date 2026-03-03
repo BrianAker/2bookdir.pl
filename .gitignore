@@ -1,1 +1,5 @@
 .test-fixtures/
+*.mp3
+*.m4b
+*.mka
+/Vol*/
