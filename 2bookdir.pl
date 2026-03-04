@@ -24,6 +24,7 @@ my $has_subtitle = 0;
 my $dry_run = 0;
 my $series_override;
 my $append_title;
+my $narrator_override;
 GetOptions(
     'help|h'  => \$help,
     'json'    => \$json_output,
@@ -36,6 +37,7 @@ GetOptions(
     'series=s' => \$series_override,
     'append-title=s' => \$append_title,
     'apend-title=s'  => \$append_title,
+    'narrator=s' => \$narrator_override,
 ) or usage(1);
 
 usage(0) if $help;
@@ -48,6 +50,9 @@ usage(1) if @ARGV < 1;
 my ($summary_title, $summary_subtitle, $summary_volume, $summary_year, $summary_author, $summary_series, $summary_asin, $summary_narrators);
 my $ok = eval {
     my ($book_file, $part_number, $book_title, $inferred_meta) = parse_args($as_is, $reverse, $has_subtitle, $series_override, @ARGV);
+    if (defined $narrator_override && trim($narrator_override) ne '') {
+        $inferred_meta->{narrators} = trim($narrator_override);
+    }
     my $is_dir_source = -d $book_file;
     my @audio_files = find_audio_files($book_file);
     my $audio_count = scalar @audio_files;
@@ -73,7 +78,13 @@ my $ok = eval {
         die "Error: '$book_file' is not a regular file or directory.\n";
     }
 
-    my $dir_name = build_dir_name($book_file, $part_number, $book_title, $inferred_meta->{year});
+    my $dir_name = build_dir_name(
+        $book_file,
+        $part_number,
+        $book_title,
+        $inferred_meta->{year},
+        $inferred_meta->{narrators},
+    );
 
     if ($is_dir_source) {
         my $dest_dir = build_dir_target_path($book_file, $dir_name);
@@ -206,7 +217,7 @@ if (!$ok) {
 exit 0;
 
 sub build_dir_name {
-    my ($file, $part, $title, $year_hint) = @_;
+    my ($file, $part, $title, $year_hint, $narrators) = @_;
 
     my $title_from_arg = defined $title && length $title;
     my $resolved_title = $title_from_arg ? $title : basename($file);
@@ -218,6 +229,7 @@ sub build_dir_name {
     $resolved_title = decode_book_file_name($resolved_title);
     $resolved_title =~ s/^\s+|\s+$//g;
     $resolved_title =~ s/\s+/ /g;
+    $resolved_title = append_narrators_to_dir_title($resolved_title, $narrators);
 
     my $prefix_value = defined $part && length $part ? $part : $year_hint;
     if (defined $prefix_value && length $prefix_value) {
@@ -228,6 +240,19 @@ sub build_dir_name {
     }
 
     return sanitize($resolved_title);
+}
+
+sub append_narrators_to_dir_title {
+    my ($title, $narrators) = @_;
+    return $title if !defined $title || $title eq '';
+    return $title if !defined $narrators || $narrators eq '';
+
+    my $clean_title = trim($title);
+    my $clean_narrators = trim($narrators);
+    return $clean_title if $clean_narrators eq '';
+    return $clean_title if $clean_title =~ /\{\Q$clean_narrators\E\}\s*$/;
+
+    return "$clean_title {$clean_narrators}";
 }
 
 sub resolve_title {
@@ -852,7 +877,7 @@ sub usage {
     my ($exit_code) = @_;
 
     print <<'USAGE';
-Usage: 2bookdir.pl [--help] [--version] [--json] [--dry-run] [--as-is] [--reverse] [--has-subtitle] [--series SERIES] [--append-title TEXT] book_file [part-number] [book title]
+Usage: 2bookdir.pl [--help] [--version] [--json] [--dry-run] [--as-is] [--reverse] [--has-subtitle] [--series SERIES] [--append-title TEXT] [--narrator NAME] book_file [part-number] [book title]
 
 Arguments:
   book_file     Required. Path to the source book file or directory.
@@ -866,6 +891,8 @@ Arguments:
                 a number, that number is used as inferred volume.
   --append-title Optional. Appends TEXT to the resolved title separated by a
                 single space. Alias: --apend-title.
+  --narrator    Optional. Explicit narrator value. When set, this value is
+                used for narrator metadata and directory name suffix.
   part-number   Optional. Positive numeric value (for example: 2 or 2.1) used
                 to prefix the directory as "Vol. N - ...". If it is a 4-digit
                 year, it is treated as PublishingDate and the directory prefix

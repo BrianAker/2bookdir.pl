@@ -23,7 +23,7 @@ ok(defined $fixture_m4b && -f $fixture_m4b, 'fixture m4b exists');
 
 my ($exit_help, $out_help, $err_help) = run_cmd('perl', $script, '--help');
 is($exit_help, 0, '--help exits successfully');
-like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--dry-run\] \[--as-is\] \[--reverse\] \[--has-subtitle\] \[--series SERIES\] \[--append-title TEXT\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
+like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--dry-run\] \[--as-is\] \[--reverse\] \[--has-subtitle\] \[--series SERIES\] \[--append-title TEXT\] \[--narrator NAME\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
 is($err_help, '', 'help does not write stderr');
 
 my ($exit_version, $out_version, $err_version) = run_cmd('perl', $script, '--version');
@@ -76,6 +76,23 @@ my $dry_run_json = decode_json($out_dry_run_json);
 is($dry_run_json->{response}, 'success', '--dry-run --json reports success');
 is($dry_run_json->{meta}->{title}, 'dry-run-json', '--dry-run --json reports inferred title');
 is($dry_run_json->{meta}->{volume}, '4', '--dry-run --json reports inferred volume');
+
+copy_single_audio_fixture('m4b', 'Narrator Option.m4b');
+my ($exit_narrator_option, $out_narrator_option, $err_narrator_option) = run_cmd(
+    'perl',
+    $script,
+    '--narrator', 'Alex Reader',
+    'Narrator Option.m4b',
+    '2'
+);
+is($exit_narrator_option, 0, '--narrator override succeeds');
+ok(-d 'Vol. 2 - Narrator Option {Alex Reader}', '--narrator override appends narrator to directory name');
+ok(-f File::Spec->catfile('Vol. 2 - Narrator Option {Alex Reader}', 'Narrator Option.m4b'), '--narrator override moves file into narrator-suffixed directory');
+is(tone_meta(File::Spec->catfile('Vol. 2 - Narrator Option {Alex Reader}', 'Narrator Option.m4b'), '$.meta.composer'), 'Alex Reader', '--narrator override sets composer metadata');
+is(tone_meta(File::Spec->catfile('Vol. 2 - Narrator Option {Alex Reader}', 'Narrator Option.m4b'), '$.meta.narrator'), 'Alex Reader', '--narrator override sets narrator metadata');
+is($err_narrator_option, '', '--narrator override does not write stderr');
+like($out_narrator_option, qr/^Moved: Narrator Option\.m4b -> Vol\. 2 - Narrator Option \{Alex Reader\}\/Narrator Option\.m4b$/m, '--narrator override output includes expected move line');
+like($out_narrator_option, qr/^Narrators: Alex Reader$/m, '--narrator override output includes narrator summary');
 
 mkdir '03. Footown - From the the Shadows'
   or die "failed to create fixture dir '03. Footown - From the the Shadows': $!";
@@ -290,18 +307,18 @@ like($out_checkpoint_asin, qr/^ASIN: B00TEST123$/m, 'checkpoint ASIN case output
 copy_single_audio_fixture('mp3', '1993 - Volume 3 - Narrated Foo {Jane Roe}.mp3');
 my ($exit_checkpoint_narrator, $out_checkpoint_narrator, $err_checkpoint_narrator) = run_cmd('perl', $script, '--checkpoint', '1993 - Volume 3 - Narrated Foo {Jane Roe}.mp3');
 is($exit_checkpoint_narrator, 0, '--checkpoint with narrator/year/volume token succeeds');
-ok(-d 'Vol. 3 - Narrated Foo', 'checkpoint narrator case creates expected directory');
-ok(-f File::Spec->catfile('Vol. 3 - Narrated Foo', 'Narrated Foo.mp3'), 'checkpoint narrator case renames audio file to title');
+ok(-d 'Vol. 3 - Narrated Foo {Jane Roe}', 'checkpoint narrator case creates expected directory');
+ok(-f File::Spec->catfile('Vol. 3 - Narrated Foo {Jane Roe}', 'Narrated Foo.mp3'), 'checkpoint narrator case renames audio file to title');
 is($err_checkpoint_narrator, '', 'checkpoint narrator case does not write stderr');
 like($out_checkpoint_narrator, qr/^CHECKPOINT: 1: NARRATOR$/m, 'checkpoint narrator case output includes narrator checkpoint marker');
 like($out_checkpoint_narrator, qr/^CHECKPOINT: 1: YEAR$/m, 'checkpoint narrator case output includes year checkpoint marker');
 like($out_checkpoint_narrator, qr/^CHECKPOINT: 2: VOLUME$/m, 'checkpoint narrator case output includes volume checkpoint marker');
-like($out_checkpoint_narrator, qr/^Moved: 1993 - Volume 3 - Narrated Foo \{Jane Roe\}\.mp3 -> Vol\. 3 - Narrated Foo\/Narrated Foo\.mp3$/m, 'checkpoint narrator case output includes expected move line');
+like($out_checkpoint_narrator, qr/^Moved: 1993 - Volume 3 - Narrated Foo \{Jane Roe\}\.mp3 -> Vol\. 3 - Narrated Foo \{Jane Roe\}\/Narrated Foo\.mp3$/m, 'checkpoint narrator case output includes expected move line');
 like($out_checkpoint_narrator, qr/^Title: Narrated Foo$/m, 'checkpoint narrator case output includes title summary line');
 like($out_checkpoint_narrator, qr/^Volume: 3$/m, 'checkpoint narrator case output includes volume summary line');
 like($out_checkpoint_narrator, qr/^Year: 1993$/m, 'checkpoint narrator case output includes year summary line');
 like($out_checkpoint_narrator, qr/^Narrators: Jane Roe$/m, 'checkpoint narrator case output includes narrators summary line');
-like(tone_dump_json(File::Spec->catfile('Vol. 3 - Narrated Foo', 'Narrated Foo.mp3')), qr/"composer"\s*:\s*"Jane Roe"/i, 'checkpoint narrator case writes composer metadata');
+like(tone_dump_json(File::Spec->catfile('Vol. 3 - Narrated Foo {Jane Roe}', 'Narrated Foo.mp3')), qr/"composer"\s*:\s*"Jane Roe"/i, 'checkpoint narrator case writes composer metadata');
 
 copy_single_audio_fixture('mp3', '1993 - Foo Json [B00TEST124].mp3');
 my ($exit_asin_json, $out_asin_json, $err_asin_json) = run_cmd('perl', $script, '--json', '1993 - Foo Json [B00TEST124].mp3');
@@ -404,8 +421,8 @@ like($out_underscore_subtitle_year, qr/^Year: 1994$/m, 'single "_ " subtitle spl
 copy_single_audio_fixture('mp3', 'Split Three_ Volume 4 [1998] {Sam Reader}.mp3');
 my ($exit_underscore_subtitle_mixed, $out_underscore_subtitle_mixed, $err_underscore_subtitle_mixed) = run_cmd('perl', $script, 'Split Three_ Volume 4 [1998] {Sam Reader}.mp3');
 is($exit_underscore_subtitle_mixed, 0, 'single "_ " subtitle split infers volume/year/narrators from subtitle');
-ok(-d 'Vol. 4 - Split Three', 'single "_ " subtitle split mixed metadata case creates expected volume directory');
-ok(-f File::Spec->catfile('Vol. 4 - Split Three', 'Split Three [1998].mp3'), 'single "_ " subtitle split mixed metadata case renames single audio and reapplies bracket segments');
+ok(-d 'Vol. 4 - Split Three {Sam Reader}', 'single "_ " subtitle split mixed metadata case creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 4 - Split Three {Sam Reader}', 'Split Three [1998].mp3'), 'single "_ " subtitle split mixed metadata case renames single audio and reapplies bracket segments');
 is($err_underscore_subtitle_mixed, '', 'single "_ " subtitle split mixed metadata case does not write stderr');
 like($out_underscore_subtitle_mixed, qr/^Subtitle: Volume 4 \[1998\] \{Sam Reader\}$/m, 'single "_ " subtitle split mixed metadata case prints subtitle');
 like($out_underscore_subtitle_mixed, qr/^Volume: 4$/m, 'single "_ " subtitle split mixed metadata case infers volume from subtitle');
@@ -426,6 +443,20 @@ like($out_underscore_subtitle_asin, qr/^Moved: Master of Dogs_ A LitRPG Progress
 like($out_underscore_subtitle_asin, qr/^Title: Master of Dogs$/m, 'single "_ " subtitle split with bracket ASIN output includes parsed title');
 like($out_underscore_subtitle_asin, qr/^Subtitle: A LitRPG Progression Fandom$/m, 'single "_ " subtitle split with bracket ASIN output includes subtitle');
 like($out_underscore_subtitle_asin, qr/^ASIN: B055855FAG$/m, 'single "_ " subtitle split with bracket ASIN output includes parsed ASIN');
+
+remove_tree('Master of Dogs');
+copy_single_audio_fixture('m4b', 'Master of Dogs_ A LitRPG Progression Fandom [B055855FAG].m4b');
+my ($exit_master_dogs_regression, $out_master_dogs_regression, $err_master_dogs_regression) = run_cmd(
+    'perl',
+    $script,
+    'Master of Dogs_ A LitRPG Progression Fandom [B055855FAG].m4b'
+);
+is($exit_master_dogs_regression, 0, 'explicit master of dogs command regression succeeds');
+ok(-d 'Master of Dogs', 'explicit master of dogs command regression creates expected directory');
+ok(-f File::Spec->catfile('Master of Dogs', 'Master of Dogs [B055855FAG].m4b'), 'explicit master of dogs command regression creates expected filename');
+is($err_master_dogs_regression, '', 'explicit master of dogs command regression writes no stderr');
+like($out_master_dogs_regression, qr/^Moved: Master of Dogs_ A LitRPG Progression Fandom \[B055855FAG\]\.m4b -> Master of Dogs\/Master of Dogs \[B055855FAG\]\.m4b$/m, 'explicit master of dogs command regression output includes expected move line');
+like($out_master_dogs_regression, qr/^Subtitle: A LitRPG Progression Fandom$/m, 'explicit master of dogs command regression output includes expected subtitle');
 
 copy_single_audio_fixture('m4b', '101.1 Cats.m4b');
 my ($exit_inferred_decimal_numeric_prefix, $out_inferred_decimal_numeric_prefix, $err_inferred_decimal_numeric_prefix) = run_cmd('perl', $script, '101.1 Cats.m4b');
@@ -656,15 +687,16 @@ copy_single_audio_fixture(
     File::Spec->catfile('1994 - Volume 1. Wizards First Rule {Sam Tsoutsouvas}', 'book.m4b')
 );
 remove_tree('Vol. 1 - Wizards First Rule');
+remove_tree('Vol. 1 - Wizards First Rule {Sam Tsoutsouvas}');
 my ($exit_year_volume_dotted, $out_year_volume_dotted, $err_year_volume_dotted) = run_cmd(
     'perl',
     $script,
     '1994 - Volume 1. Wizards First Rule {Sam Tsoutsouvas}'
 );
 is($exit_year_volume_dotted, 0, 'year + dotted volume/title segment with narrator succeeds');
-ok(-d 'Vol. 1 - Wizards First Rule', 'year + dotted volume/title creates expected volume directory');
+ok(-d 'Vol. 1 - Wizards First Rule {Sam Tsoutsouvas}', 'year + dotted volume/title creates expected volume directory');
 ok(!-d '1994 - Volume 1. Wizards First Rule {Sam Tsoutsouvas}', 'year + dotted volume/title source directory no longer exists after rename');
-ok(-f File::Spec->catfile('Vol. 1 - Wizards First Rule', 'Wizards First Rule.m4b'), 'year + dotted volume/title renames single audio file to inferred title');
+ok(-f File::Spec->catfile('Vol. 1 - Wizards First Rule {Sam Tsoutsouvas}', 'Wizards First Rule.m4b'), 'year + dotted volume/title renames single audio file to inferred title');
 is($err_year_volume_dotted, '', 'year + dotted volume/title does not write stderr');
 like($out_year_volume_dotted, qr/^Title: Wizards First Rule$/m, 'year + dotted volume/title output includes title summary');
 like($out_year_volume_dotted, qr/^Volume: 1$/m, 'year + dotted volume/title output includes volume summary');
@@ -672,6 +704,7 @@ like($out_year_volume_dotted, qr/^Year: 1994$/m, 'year + dotted volume/title out
 like($out_year_volume_dotted, qr/^Narrators: Sam Tsoutsouvas$/m, 'year + dotted volume/title output includes narrators summary');
 
 remove_tree('Vol. 1 - Wizards First Rule');
+remove_tree('Vol. 1 - Wizards First Rule {Sam Tsoutsouvas}');
 
 mkdir 'Vol. 1 - 1994 - Wizards First Rule - A Really Good Subtitle {Sam Tsoutsouvas}'
   or die "failed to create fixture dir 'Vol. 1 - 1994 - Wizards First Rule - A Really Good Subtitle {Sam Tsoutsouvas}': $!";
@@ -683,6 +716,7 @@ copy_single_audio_fixture(
     )
 );
 remove_tree('Vol. 1 - Wizards First Rule');
+remove_tree('Vol. 1 - Wizards First Rule {Sam Tsoutsouvas}');
 my ($exit_has_subtitle_complex, $out_has_subtitle_complex, $err_has_subtitle_complex) = run_cmd(
     'perl',
     $script,
@@ -690,10 +724,10 @@ my ($exit_has_subtitle_complex, $out_has_subtitle_complex, $err_has_subtitle_com
     'Vol. 1 - 1994 - Wizards First Rule - A Really Good Subtitle {Sam Tsoutsouvas}'
 );
 is($exit_has_subtitle_complex, 0, '--has-subtitle complex dashed input with narrator succeeds');
-ok(-d 'Vol. 1 - Wizards First Rule', '--has-subtitle complex input creates expected volume directory');
+ok(-d 'Vol. 1 - Wizards First Rule {Sam Tsoutsouvas}', '--has-subtitle complex input creates expected volume directory');
 ok(!-d 'Vol. 1 - 1994 - Wizards First Rule - A Really Good Subtitle {Sam Tsoutsouvas}', '--has-subtitle complex source directory no longer exists after rename');
-ok(-f File::Spec->catfile('Vol. 1 - Wizards First Rule', 'Wizards First Rule.m4b'), '--has-subtitle complex input renames single audio file to inferred title');
-is(tone_meta(File::Spec->catfile('Vol. 1 - Wizards First Rule', 'Wizards First Rule.m4b'), '$.meta.additionalFields.subtitle'), 'A Really Good Subtitle', '--has-subtitle complex input updates tone subtitle metadata');
+ok(-f File::Spec->catfile('Vol. 1 - Wizards First Rule {Sam Tsoutsouvas}', 'Wizards First Rule.m4b'), '--has-subtitle complex input renames single audio file to inferred title');
+is(tone_meta(File::Spec->catfile('Vol. 1 - Wizards First Rule {Sam Tsoutsouvas}', 'Wizards First Rule.m4b'), '$.meta.additionalFields.subtitle'), 'A Really Good Subtitle', '--has-subtitle complex input updates tone subtitle metadata');
 is($err_has_subtitle_complex, '', '--has-subtitle complex input does not write stderr');
 like($out_has_subtitle_complex, qr/^Title: Wizards First Rule$/m, '--has-subtitle complex output includes title summary');
 like($out_has_subtitle_complex, qr/^Subtitle: A Really Good Subtitle$/m, '--has-subtitle complex output includes subtitle summary');
