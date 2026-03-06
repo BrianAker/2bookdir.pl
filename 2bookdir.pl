@@ -23,6 +23,7 @@ my $checkpoint = 0;
 my $has_subtitle = 0;
 my $dry_run = 0;
 my $skip_tone = 0;
+my $title_is_series = 0;
 my $series_override;
 my $append_title;
 my $narrator_override;
@@ -36,6 +37,7 @@ GetOptions(
     'has-subtitle' => \$has_subtitle,
     'dry-run' => \$dry_run,
     'skip-tone' => \$skip_tone,
+    'title-is-series' => \$title_is_series,
     'series=s' => \$series_override,
     'append-title=s' => \$append_title,
     'apend-title=s'  => \$append_title,
@@ -51,7 +53,7 @@ usage(1) if @ARGV < 1;
 
 my ($summary_title, $summary_subtitle, $summary_volume, $summary_year, $summary_author, $summary_series, $summary_asin, $summary_narrators);
 my $ok = eval {
-    my ($book_file, $part_number, $book_title, $inferred_meta) = parse_args($as_is, $reverse, $has_subtitle, $series_override, @ARGV);
+    my ($book_file, $part_number, $book_title, $inferred_meta) = parse_args($as_is, $reverse, $has_subtitle, $series_override, $title_is_series, @ARGV);
     if (defined $narrator_override && trim($narrator_override) ne '') {
         $inferred_meta->{narrators} = trim($narrator_override);
     }
@@ -884,7 +886,7 @@ sub usage {
     my ($exit_code) = @_;
 
     print <<'USAGE';
-Usage: 2bookdir.pl [--help] [--version] [--json] [--dry-run] [--skip-tone] [--as-is] [--reverse] [--has-subtitle] [--series SERIES] [--append-title TEXT] [--narrator NAME] book_file [part-number] [book title]
+Usage: 2bookdir.pl [--help] [--version] [--json] [--dry-run] [--skip-tone] [--as-is] [--reverse] [--has-subtitle] [--title-is-series] [--series SERIES] [--append-title TEXT] [--narrator NAME] book_file [part-number] [book title]
 
 Arguments:
   book_file     Required. Path to the source book file or directory.
@@ -892,6 +894,8 @@ Arguments:
                 dash-split inference formats.
   --has-subtitle Optional. For dash-split inference, treat the last segment
                 as subtitle metadata and remove it from title parsing.
+  --title-is-series Optional. Infer series and volume from title when title
+                ends in a number (for example: "Series Name 3").
   --dry-run     Optional. Simulate operations and print normal text/JSON
                 output without modifying files or metadata.
   --skip-tone   Optional. Perform filesystem operations but skip all tone
@@ -932,7 +936,7 @@ sub build_version {
 }
 
 sub parse_args {
-    my ($as_is_mode, $reverse_mode, $has_subtitle_mode, $series_override_value, @args) = @_;
+    my ($as_is_mode, $reverse_mode, $has_subtitle_mode, $series_override_value, $title_is_series_mode, @args) = @_;
 
     my ($file, @rest);
     if (-e $args[0]) {
@@ -1211,6 +1215,15 @@ sub parse_args {
                         $inferred_meta{subtitle} = $parsed_subtitle if !defined $inferred_meta{subtitle};
                     }
                 }
+            }
+        }
+
+        if ($title_is_series_mode && defined $title && $title ne '') {
+            my ($first_pass, $series_volume, $has_series_volume) = extract_series_and_volume($title);
+            if ($has_series_volume) {
+                $inferred_meta{series} = $first_pass
+                  if !defined $inferred_meta{series} || $inferred_meta{series} eq '';
+                $part = $series_volume if !defined $part || $part eq '';
             }
         }
     }

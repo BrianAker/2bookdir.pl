@@ -23,7 +23,7 @@ ok(defined $fixture_m4b && -f $fixture_m4b, 'fixture m4b exists');
 
 my ($exit_help, $out_help, $err_help) = run_cmd('perl', $script, '--help');
 is($exit_help, 0, '--help exits successfully');
-like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--dry-run\] \[--skip-tone\] \[--as-is\] \[--reverse\] \[--has-subtitle\] \[--series SERIES\] \[--append-title TEXT\] \[--narrator NAME\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
+like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--dry-run\] \[--skip-tone\] \[--as-is\] \[--reverse\] \[--has-subtitle\] \[--title-is-series\] \[--series SERIES\] \[--append-title TEXT\] \[--narrator NAME\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
 is($err_help, '', 'help does not write stderr');
 
 my ($exit_version, $out_version, $err_version) = run_cmd('perl', $script, '--version');
@@ -274,6 +274,60 @@ like($out_pup_road_inferred, qr/^Title: Pup Road$/m, 'inferred Pup Road case out
 like($out_pup_road_inferred, qr/^Volume: 3$/m, 'inferred Pup Road case output includes inferred volume');
 like($out_pup_road_inferred, qr/^Series: Super Dog$/m, 'inferred Pup Road case output includes inferred series');
 unlike($out_pup_road_inferred, qr/^Subtitle:/m, 'inferred Pup Road case does not keep subtitle');
+
+remove_tree('Vol. 3 - Super Dog 3');
+copy_single_audio_fixture('m4b', 'J.A. Min - Super Dog 3: Pup Fantasy.m4b');
+my ($exit_title_is_series_author, $out_title_is_series_author, $err_title_is_series_author) = run_cmd(
+    'perl',
+    $script,
+    '--title-is-series',
+    'J.A. Min - Super Dog 3: Pup Fantasy.m4b'
+);
+is($exit_title_is_series_author, 0, '--title-is-series with author and subtitle succeeds');
+ok(-d 'Vol. 3 - Super Dog 3', '--title-is-series with author/subtitle creates expected directory');
+ok(-f File::Spec->catfile('Vol. 3 - Super Dog 3', 'Super Dog 3.m4b'), '--title-is-series with author/subtitle renames single audio to title');
+is($err_title_is_series_author, '', '--title-is-series with author/subtitle writes no stderr');
+like($out_title_is_series_author, qr/^Title: Super Dog 3$/m, '--title-is-series with author/subtitle prints title');
+like($out_title_is_series_author, qr/^Subtitle: Pup Fantasy$/m, '--title-is-series with author/subtitle prints subtitle');
+like($out_title_is_series_author, qr/^Volume: 3$/m, '--title-is-series with author/subtitle prints volume');
+like($out_title_is_series_author, qr/^Series: Super Dog$/m, '--title-is-series with author/subtitle prints series');
+like($out_title_is_series_author, qr/^Author: J\.A\. Min$/m, '--title-is-series with author/subtitle prints author');
+
+remove_tree('Vol. 3 - Super Dog 3');
+copy_single_audio_fixture('m4b', 'Super Dog 3: Pup Fantasy.m4b');
+my ($exit_title_is_series_no_author, $out_title_is_series_no_author, $err_title_is_series_no_author) = run_cmd(
+    'perl',
+    $script,
+    '--title-is-series',
+    'Super Dog 3: Pup Fantasy.m4b'
+);
+is($exit_title_is_series_no_author, 0, '--title-is-series with subtitle but no author succeeds');
+ok(-d 'Vol. 3 - Super Dog 3', '--title-is-series with subtitle/no author creates expected directory');
+ok(-f File::Spec->catfile('Vol. 3 - Super Dog 3', 'Super Dog 3.m4b'), '--title-is-series with subtitle/no author renames single audio to title');
+is($err_title_is_series_no_author, '', '--title-is-series with subtitle/no author writes no stderr');
+like($out_title_is_series_no_author, qr/^Title: Super Dog 3$/m, '--title-is-series with subtitle/no author prints title');
+like($out_title_is_series_no_author, qr/^Subtitle: Pup Fantasy$/m, '--title-is-series with subtitle/no author prints subtitle');
+like($out_title_is_series_no_author, qr/^Volume: 3$/m, '--title-is-series with subtitle/no author prints volume');
+like($out_title_is_series_no_author, qr/^Series: Super Dog$/m, '--title-is-series with subtitle/no author prints series');
+unlike($out_title_is_series_no_author, qr/^Author:/m, '--title-is-series with subtitle/no author does not print author');
+
+remove_tree('Vol. 3 - Super Dog 3');
+copy_single_audio_fixture('m4b', 'Super Dog 3.m4b');
+my ($exit_title_is_series_plain, $out_title_is_series_plain, $err_title_is_series_plain) = run_cmd(
+    'perl',
+    $script,
+    '--title-is-series',
+    'Super Dog 3.m4b'
+);
+is($exit_title_is_series_plain, 0, '--title-is-series plain title succeeds');
+ok(-d 'Vol. 3 - Super Dog 3', '--title-is-series plain title creates expected directory');
+ok(-f File::Spec->catfile('Vol. 3 - Super Dog 3', 'Super Dog 3.m4b'), '--title-is-series plain title keeps expected filename');
+is($err_title_is_series_plain, '', '--title-is-series plain title writes no stderr');
+like($out_title_is_series_plain, qr/^Title: Super Dog 3$/m, '--title-is-series plain title prints title');
+like($out_title_is_series_plain, qr/^Volume: 3$/m, '--title-is-series plain title prints volume');
+like($out_title_is_series_plain, qr/^Series: Super Dog$/m, '--title-is-series plain title prints series');
+unlike($out_title_is_series_plain, qr/^Subtitle:/m, '--title-is-series plain title has no subtitle');
+unlike($out_title_is_series_plain, qr/^Author:/m, '--title-is-series plain title has no author');
 
 copy_single_audio_fixture('m4b', 'Frog God.m4b');
 my ($exit_spaced_title_decimal, $out_spaced_title_decimal, $err_spaced_title_decimal) = run_cmd('perl', $script, 'Frog', 'God.m4b', '2.1', 'My', 'Part');
