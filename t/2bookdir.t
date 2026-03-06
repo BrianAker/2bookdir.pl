@@ -23,7 +23,7 @@ ok(defined $fixture_m4b && -f $fixture_m4b, 'fixture m4b exists');
 
 my ($exit_help, $out_help, $err_help) = run_cmd('perl', $script, '--help');
 is($exit_help, 0, '--help exits successfully');
-like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--dry-run\] \[--skip-tone\] \[--as-is\] \[--reverse\] \[--has-subtitle\] \[--title-is-series\] \[--series SERIES\] \[--append-title TEXT\] \[--narrator NAME\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
+like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--dry-run\] \[--skip-tone\] \[--as-is\] \[--reverse\] \[--has-subtitle\] \[--title-is-series\] \[--series SERIES\] \[--order ORDER\] \[--append-title TEXT\] \[--narrator NAME\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
 is($err_help, '', 'help does not write stderr');
 
 my ($exit_version, $out_version, $err_version) = run_cmd('perl', $script, '--version');
@@ -310,6 +310,67 @@ like($out_title_is_series_no_author, qr/^Subtitle: Pup Fantasy$/m, '--title-is-s
 like($out_title_is_series_no_author, qr/^Volume: 3$/m, '--title-is-series with subtitle/no author prints volume');
 like($out_title_is_series_no_author, qr/^Series: Super Dog$/m, '--title-is-series with subtitle/no author prints series');
 unlike($out_title_is_series_no_author, qr/^Author:/m, '--title-is-series with subtitle/no author does not print author');
+
+remove_tree('Vol. 3 - Super Dog 3');
+remove_tree('Super Dog 3');
+copy_single_audio_fixture('m4b', 'Super Dog 3: Pup Fantasy.m4b');
+my ($exit_no_title_is_series, $out_no_title_is_series, $err_no_title_is_series) = run_cmd(
+    'perl',
+    $script,
+    'Super Dog 3: Pup Fantasy.m4b'
+);
+is($exit_no_title_is_series, 0, 'without --title-is-series keeps baseline title/subtitle parsing');
+ok(-d 'Super Dog 3', 'without --title-is-series creates directory from left side title');
+ok(-f File::Spec->catfile('Super Dog 3', 'Super Dog 3.m4b'), 'without --title-is-series renames single audio to left side title');
+is($err_no_title_is_series, '', 'without --title-is-series writes no stderr');
+like($out_no_title_is_series, qr/^Title: Super Dog 3$/m, 'without --title-is-series prints title');
+like($out_no_title_is_series, qr/^Subtitle: Pup Fantasy$/m, 'without --title-is-series prints subtitle');
+unlike($out_no_title_is_series, qr/^Volume:/m, 'without --title-is-series does not print volume');
+unlike($out_no_title_is_series, qr/^Series:/m, 'without --title-is-series does not print series');
+unlike($out_no_title_is_series, qr/^Author:/m, 'without --title-is-series does not print author');
+
+remove_tree('Vol. 3 - Pup Fantasy');
+remove_tree('Super Dog 3');
+copy_single_audio_fixture('m4b', 'Super Dog 3: Pup Fantasy.m4b');
+my ($exit_order_series_title, $out_order_series_title, $err_order_series_title) = run_cmd(
+    'perl',
+    $script,
+    '--order',
+    'series-title',
+    'Super Dog 3: Pup Fantasy.m4b'
+);
+is($exit_order_series_title, 0, '--order series-title uses right side as title for colon split');
+ok(-d 'Vol. 3 - Pup Fantasy', '--order series-title creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 3 - Pup Fantasy', 'Pup Fantasy.m4b'), '--order series-title renames single audio to right side title');
+is(tone_meta(File::Spec->catfile('Vol. 3 - Pup Fantasy', 'Pup Fantasy.m4b'), '$.meta.movementName'), 'Super Dog', '--order series-title sets series metadata from left side');
+is(tone_meta(File::Spec->catfile('Vol. 3 - Pup Fantasy', 'Pup Fantasy.m4b'), '$.meta.movement'), '3', '--order series-title sets movement metadata from left side volume');
+is($err_order_series_title, '', '--order series-title writes no stderr');
+like($out_order_series_title, qr/^Title: Pup Fantasy$/m, '--order series-title prints right side title');
+like($out_order_series_title, qr/^Volume: 3$/m, '--order series-title prints inferred volume');
+like($out_order_series_title, qr/^Series: Super Dog$/m, '--order series-title prints inferred series');
+unlike($out_order_series_title, qr/^Subtitle:/m, '--order series-title does not print subtitle');
+
+remove_tree('Vol. 3 - Pup Fantasy');
+copy_single_audio_fixture('m4b', 'Super Dog 3: Pup Fantasy [B0AAAP75QM].m4b');
+my ($exit_order_series_title_asin, $out_order_series_title_asin, $err_order_series_title_asin) = run_cmd(
+    'perl',
+    $script,
+    '--order',
+    'series-title',
+    'Super Dog 3: Pup Fantasy [B0AAAP75QM].m4b'
+);
+is($exit_order_series_title_asin, 0, '--order series-title with ASIN uses right side as title');
+ok(-d 'Vol. 3 - Pup Fantasy', '--order series-title with ASIN creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 3 - Pup Fantasy', 'Pup Fantasy [B0AAAP75QM].m4b'), '--order series-title with ASIN reapplies bracket segment to filename');
+is(tone_meta(File::Spec->catfile('Vol. 3 - Pup Fantasy', 'Pup Fantasy [B0AAAP75QM].m4b'), '$.meta.movementName'), 'Super Dog', '--order series-title with ASIN sets series metadata from left side');
+is(tone_meta(File::Spec->catfile('Vol. 3 - Pup Fantasy', 'Pup Fantasy [B0AAAP75QM].m4b'), '$.meta.movement'), '3', '--order series-title with ASIN sets movement metadata from left side volume');
+like(tone_dump_json(File::Spec->catfile('Vol. 3 - Pup Fantasy', 'Pup Fantasy [B0AAAP75QM].m4b')), qr/"additionalFields"\s*:\s*\{[\s\S]*?"[^"]*ASIN"\s*:\s*"B0AAAP75QM"/i, '--order series-title with ASIN writes AUDIBLE_ASIN metadata');
+is($err_order_series_title_asin, '', '--order series-title with ASIN writes no stderr');
+like($out_order_series_title_asin, qr/^Title: Pup Fantasy$/m, '--order series-title with ASIN prints right side title');
+like($out_order_series_title_asin, qr/^Volume: 3$/m, '--order series-title with ASIN prints inferred volume');
+like($out_order_series_title_asin, qr/^Series: Super Dog$/m, '--order series-title with ASIN prints inferred series');
+like($out_order_series_title_asin, qr/^ASIN: B0AAAP75QM$/m, '--order series-title with ASIN prints parsed ASIN');
+unlike($out_order_series_title_asin, qr/^Subtitle:/m, '--order series-title with ASIN does not print subtitle');
 
 remove_tree('Vol. 3 - Super Dog 3');
 copy_single_audio_fixture('m4b', 'Super Dog 3.m4b');

@@ -24,6 +24,7 @@ my $has_subtitle = 0;
 my $dry_run = 0;
 my $skip_tone = 0;
 my $title_is_series = 0;
+my $order;
 my $series_override;
 my $append_title;
 my $narrator_override;
@@ -38,11 +39,19 @@ GetOptions(
     'dry-run' => \$dry_run,
     'skip-tone' => \$skip_tone,
     'title-is-series' => \$title_is_series,
+    'order=s' => \$order,
     'series=s' => \$series_override,
     'append-title=s' => \$append_title,
     'apend-title=s'  => \$append_title,
     'narrator=s' => \$narrator_override,
 ) or usage(1);
+
+if (defined $order) {
+    $order = lc trim($order);
+    if ($order ne 'series-title') {
+        die "Error: invalid --order '$order'. Supported values: series-title\n";
+    }
+}
 
 usage(0) if $help;
 if ($show_version) {
@@ -53,7 +62,7 @@ usage(1) if @ARGV < 1;
 
 my ($summary_title, $summary_subtitle, $summary_volume, $summary_year, $summary_author, $summary_series, $summary_asin, $summary_narrators);
 my $ok = eval {
-    my ($book_file, $part_number, $book_title, $inferred_meta) = parse_args($as_is, $reverse, $has_subtitle, $series_override, $title_is_series, @ARGV);
+    my ($book_file, $part_number, $book_title, $inferred_meta) = parse_args($as_is, $reverse, $has_subtitle, $series_override, $title_is_series, $order, @ARGV);
     if (defined $narrator_override && trim($narrator_override) ne '') {
         $inferred_meta->{narrators} = trim($narrator_override);
     }
@@ -886,7 +895,7 @@ sub usage {
     my ($exit_code) = @_;
 
     print <<'USAGE';
-Usage: 2bookdir.pl [--help] [--version] [--json] [--dry-run] [--skip-tone] [--as-is] [--reverse] [--has-subtitle] [--title-is-series] [--series SERIES] [--append-title TEXT] [--narrator NAME] book_file [part-number] [book title]
+Usage: 2bookdir.pl [--help] [--version] [--json] [--dry-run] [--skip-tone] [--as-is] [--reverse] [--has-subtitle] [--title-is-series] [--series SERIES] [--order ORDER] [--append-title TEXT] [--narrator NAME] book_file [part-number] [book title]
 
 Arguments:
   book_file     Required. Path to the source book file or directory.
@@ -902,6 +911,9 @@ Arguments:
                 metadata updates.
   --series      Optional. Explicit series name. If the series value ends with
                 a number, that number is used as inferred volume.
+  --order       Optional. Supported value: series-title. For colon-delimited
+                names (for example: "Series 3: Title"), infer series/volume
+                from the left side and use the right side as title.
   --append-title Optional. Appends TEXT to the resolved title separated by a
                 single space. Alias: --apend-title.
   --narrator    Optional. Explicit narrator value. When set, this value is
@@ -936,7 +948,7 @@ sub build_version {
 }
 
 sub parse_args {
-    my ($as_is_mode, $reverse_mode, $has_subtitle_mode, $series_override_value, $title_is_series_mode, @args) = @_;
+    my ($as_is_mode, $reverse_mode, $has_subtitle_mode, $series_override_value, $title_is_series_mode, $order_mode, @args) = @_;
 
     my ($file, @rest);
     if (-e $args[0]) {
@@ -1194,30 +1206,65 @@ sub parse_args {
         # or "Title- Subtitle". This is disabled when --as-is is used.
         if (!$as_is_mode) {
             my $subtitle_source = defined $title ? $title : $source_name;
-            if (defined $subtitle_source && $subtitle_source =~ /^(.*?\w.*?)(?::\s+|-\s+)(.+)$/) {
+            if (defined $subtitle_source && $subtitle_source =~ /^(.*?\w.*?)(:\s+|-\s+)(.+)$/) {
                 my $parsed_title = trim($1);
-                my $parsed_subtitle = trim($2);
+                my $delimiter = $2;
+                my $parsed_subtitle = trim($3);
                 if ($parsed_title ne '' && $parsed_subtitle ne '') {
-                    my ($series_from_colon, $volume_from_colon, $keep_title_from_colon_left) =
-                      parse_series_volume_from_colon_left($parsed_title);
+                    my $handled_by_order = 0;
                     if (
-                        defined $series_from_colon
-                        && $series_from_colon ne ''
-                        && defined $volume_from_colon
-                        && $volume_from_colon ne ''
+                        defined $order_mode
+                        && $order_mode eq 'series-title'
+                        && $delimiter =~ /^:/
                     ) {
-                        if ($keep_title_from_colon_left) {
+                        my ($series_from_order, $volume_from_order, undef) =
+                          parse_series_volume_from_colon_left($parsed_title);
+                        if (
+                            (!defined $series_from_order || $series_from_order eq '')
+                            && (!defined $volume_from_order || $volume_from_order eq '')
+                        ) {
+                            my ($series_fallback, $volume_fallback, $has_fallback) =
+                              extract_series_and_volume($parsed_title);
+                            if ($has_fallback) {
+                                $series_from_order = $series_fallback;
+                                $volume_from_order = $volume_fallback;
+                            }
+                        }
+                        if (
+                            defined $series_from_order
+                            && $series_from_order ne ''
+                            && defined $volume_from_order
+                            && $volume_from_order ne ''
+                        ) {
+                            $title = $parsed_subtitle;
+                            $inferred_meta{series} = $series_from_order
+                              if !defined $inferred_meta{series} || $inferred_meta{series} eq '';
+                            $part = $volume_from_order if !defined $part || $part eq '';
+                            $handled_by_order = 1;
+                        }
+                    }
+                    if (!$handled_by_order) {
+                        my ($series_from_colon, $volume_from_colon, $keep_title_from_colon_left) =
+                          parse_series_volume_from_colon_left($parsed_title);
+                        if (
+                            defined $series_from_colon
+                            && $series_from_colon ne ''
+                            && defined $volume_from_colon
+                            && $volume_from_colon ne ''
+                        ) {
+                            if ($keep_title_from_colon_left) {
+                                $title = $parsed_title;
+                                $inferred_meta{subtitle} = $parsed_subtitle if !defined $inferred_meta{subtitle};
+                            } else {
+                                $title = $parsed_subtitle;
+                            }
+                            $inferred_meta{series} = $series_from_colon
+                              if !defined $inferred_meta{series} || $inferred_meta{series} eq '';
+                            $part = $volume_from_colon if !defined $part || $part eq '';
+                        } else {
                             $title = $parsed_title;
                             $inferred_meta{subtitle} = $parsed_subtitle if !defined $inferred_meta{subtitle};
-                        } else {
-                            $title = $parsed_subtitle;
                         }
-                        $inferred_meta{series} = $series_from_colon
-                          if !defined $inferred_meta{series} || $inferred_meta{series} eq '';
-                        $part = $volume_from_colon if !defined $part || $part eq '';
-                    } else {
-                        $title = $parsed_title;
-                        $inferred_meta{subtitle} = $parsed_subtitle if !defined $inferred_meta{subtitle};
                     }
                 }
             }
