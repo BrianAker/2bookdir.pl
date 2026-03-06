@@ -218,6 +218,44 @@ is(tone_meta(File::Spec->catfile('Vol. 3 - My Dog', 'My Dog.m4b'), '$.meta.movem
 is($err_spaced_title, '', 'spaced filename with part and title does not write stderr');
 like($out_spaced_title, qr/^Moved: Frog God\.m4b -> Vol\. 3 - My Dog\/My Dog\.m4b$/m, 'spaced filename with part and title output includes destination');
 
+copy_single_audio_fixture('m4b', 'J.A. Min - Super Dog Book 3: Pup Road.m4b');
+my ($exit_pup_road_explicit, $out_pup_road_explicit, $err_pup_road_explicit) = run_cmd(
+    'perl',
+    $script,
+    'J.A. Min - Super Dog Book 3: Pup Road.m4b',
+    '3',
+    'Pup Road'
+);
+is($exit_pup_road_explicit, 0, 'explicit title/volume overrides source metadata-like tokens');
+ok(-d 'Vol. 3 - Pup Road', 'explicit Pup Road case creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 3 - Pup Road', 'Pup Road.m4b'), 'explicit Pup Road case renames file to explicit title');
+is(tone_album(File::Spec->catfile('Vol. 3 - Pup Road', 'Pup Road.m4b')), 'Pup Road', 'explicit Pup Road case sets album metadata to explicit title');
+is(tone_title(File::Spec->catfile('Vol. 3 - Pup Road', 'Pup Road.m4b')), 'Pup Road', 'explicit Pup Road case sets title metadata to explicit title');
+is(tone_meta(File::Spec->catfile('Vol. 3 - Pup Road', 'Pup Road.m4b'), '$.meta.movement'), '3', 'explicit Pup Road case sets movement metadata from explicit volume');
+is($err_pup_road_explicit, '', 'explicit Pup Road case does not write stderr');
+like($out_pup_road_explicit, qr/^Moved: J\.A\. Min - Super Dog Book 3: Pup Road\.m4b -> Vol\. 3 - Pup Road\/Pup Road\.m4b$/m, 'explicit Pup Road case output includes expected destination');
+like($out_pup_road_explicit, qr/^Title: Pup Road$/m, 'explicit Pup Road case output includes explicit title summary');
+like($out_pup_road_explicit, qr/^Volume: 3$/m, 'explicit Pup Road case output includes explicit volume summary');
+
+remove_tree('Vol. 3 - Pup Road');
+copy_single_audio_fixture('m4b', 'J.A. Min - Super Dog Book 3: Pup Road.m4b');
+my ($exit_pup_road_inferred, $out_pup_road_inferred, $err_pup_road_inferred) = run_cmd(
+    'perl',
+    $script,
+    'J.A. Min - Super Dog Book 3: Pup Road.m4b'
+);
+is($exit_pup_road_inferred, 0, 'inferred Pup Road case parses colon-left series+volume');
+ok(-d 'Vol. 3 - Pup Road', 'inferred Pup Road case creates expected volume directory');
+ok(-f File::Spec->catfile('Vol. 3 - Pup Road', 'Pup Road.m4b'), 'inferred Pup Road case renames file to right side of colon');
+is(tone_meta(File::Spec->catfile('Vol. 3 - Pup Road', 'Pup Road.m4b'), '$.meta.movementName'), 'Super Dog', 'inferred Pup Road case sets movement-name from left side');
+is(tone_meta(File::Spec->catfile('Vol. 3 - Pup Road', 'Pup Road.m4b'), '$.meta.movement'), '3', 'inferred Pup Road case sets movement from left side');
+is($err_pup_road_inferred, '', 'inferred Pup Road case does not write stderr');
+like($out_pup_road_inferred, qr/^Moved: J\.A\. Min - Super Dog Book 3: Pup Road\.m4b -> Vol\. 3 - Pup Road\/Pup Road\.m4b$/m, 'inferred Pup Road case output includes expected destination');
+like($out_pup_road_inferred, qr/^Title: Pup Road$/m, 'inferred Pup Road case output includes parsed title');
+like($out_pup_road_inferred, qr/^Volume: 3$/m, 'inferred Pup Road case output includes inferred volume');
+like($out_pup_road_inferred, qr/^Series: Super Dog$/m, 'inferred Pup Road case output includes inferred series');
+unlike($out_pup_road_inferred, qr/^Subtitle:/m, 'inferred Pup Road case does not keep subtitle');
+
 copy_single_audio_fixture('m4b', 'Frog God.m4b');
 my ($exit_spaced_title_decimal, $out_spaced_title_decimal, $err_spaced_title_decimal) = run_cmd('perl', $script, 'Frog', 'God.m4b', '2.1', 'My', 'Part');
 is($exit_spaced_title_decimal, 0, 'single audio file with decimal part and title succeeds');

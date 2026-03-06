@@ -1185,8 +1185,22 @@ sub parse_args {
                 my $parsed_title = trim($1);
                 my $parsed_subtitle = trim($2);
                 if ($parsed_title ne '' && $parsed_subtitle ne '') {
-                    $title = $parsed_title;
-                    $inferred_meta{subtitle} = $parsed_subtitle if !defined $inferred_meta{subtitle};
+                    my ($series_from_colon, $volume_from_colon) =
+                      parse_series_volume_from_colon_left($parsed_title);
+                    if (
+                        defined $series_from_colon
+                        && $series_from_colon ne ''
+                        && defined $volume_from_colon
+                        && $volume_from_colon ne ''
+                    ) {
+                        $title = $parsed_subtitle;
+                        $inferred_meta{series} = $series_from_colon
+                          if !defined $inferred_meta{series} || $inferred_meta{series} eq '';
+                        $part = $volume_from_colon if !defined $part || $part eq '';
+                    } else {
+                        $title = $parsed_title;
+                        $inferred_meta{subtitle} = $parsed_subtitle if !defined $inferred_meta{subtitle};
+                    }
                 }
             }
         }
@@ -1335,6 +1349,32 @@ sub infer_suffix_volume_number {
     }
 
     return undef;
+}
+
+sub parse_series_volume_from_colon_left {
+    my ($left) = @_;
+    my $clean = trim($left);
+    return (undef, undef) if $clean eq '';
+
+    if ($clean =~ /^(.*?)\s+(?:Volume|Book|Vol\.?)\s+(\d+)\s*$/i) {
+        my $series = trim($1);
+        return (undef, undef) if $series eq '';
+        return ($series, normalize_inferred_part_number($2));
+    }
+
+    if ($clean =~ /^(.*?)\s*#(\d+)\s*$/) {
+        my $series = trim($1);
+        return (undef, undef) if $series eq '';
+        return ($series, normalize_inferred_part_number($2));
+    }
+
+    if ($clean =~ /^(.*?)\s*(?:v|vol)(\d+)\s*$/i) {
+        my $series = trim($1);
+        return (undef, undef) if $series eq '';
+        return ($series, normalize_inferred_part_number($2));
+    }
+
+    return (undef, undef);
 }
 
 sub find_existing_file_prefix {
