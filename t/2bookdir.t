@@ -23,7 +23,7 @@ ok(defined $fixture_m4b && -f $fixture_m4b, 'fixture m4b exists');
 
 my ($exit_help, $out_help, $err_help) = run_cmd('perl', $script, '--help');
 is($exit_help, 0, '--help exits successfully');
-like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--dry-run\] \[--as-is\] \[--reverse\] \[--has-subtitle\] \[--series SERIES\] \[--append-title TEXT\] \[--narrator NAME\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
+like($out_help, qr/^Usage: 2bookdir\.pl \[--help\] \[--version\] \[--json\] \[--dry-run\] \[--skip-tone\] \[--as-is\] \[--reverse\] \[--has-subtitle\] \[--series SERIES\] \[--append-title TEXT\] \[--narrator NAME\] book_file \[part-number\] \[book title\]/m, 'help shows usage');
 is($err_help, '', 'help does not write stderr');
 
 my ($exit_version, $out_version, $err_version) = run_cmd('perl', $script, '--version');
@@ -76,6 +76,25 @@ my $dry_run_json = decode_json($out_dry_run_json);
 is($dry_run_json->{response}, 'success', '--dry-run --json reports success');
 is($dry_run_json->{meta}->{title}, 'dry-run-json', '--dry-run --json reports inferred title');
 is($dry_run_json->{meta}->{volume}, '4', '--dry-run --json reports inferred volume');
+
+copy_single_audio_fixture('m4b', 'Skip Tone Source.m4b');
+my ($exit_skip_tone, $out_skip_tone, $err_skip_tone) = run_cmd(
+    'perl',
+    $script,
+    '--skip-tone',
+    'Skip Tone Source.m4b',
+    '5',
+    'Skip Tone Dest'
+);
+is($exit_skip_tone, 0, '--skip-tone file source exits zero');
+ok(-d 'Vol. 5 - Skip Tone Dest', '--skip-tone creates destination directory');
+ok(-f File::Spec->catfile('Vol. 5 - Skip Tone Dest', 'Skip Tone Dest.m4b'), '--skip-tone renames and moves file as normal');
+is(tone_album(File::Spec->catfile('Vol. 5 - Skip Tone Dest', 'Skip Tone Dest.m4b')), 'Skip Tone Source', '--skip-tone leaves existing album metadata unchanged');
+is(tone_meta(File::Spec->catfile('Vol. 5 - Skip Tone Dest', 'Skip Tone Dest.m4b'), '$.meta.movement'), '', '--skip-tone does not set movement metadata');
+is($err_skip_tone, '', '--skip-tone does not write stderr');
+like($out_skip_tone, qr/^Moved: Skip Tone Source\.m4b -> Vol\. 5 - Skip Tone Dest\/Skip Tone Dest\.m4b$/m, '--skip-tone output includes expected move line');
+like($out_skip_tone, qr/^Title: Skip Tone Dest$/m, '--skip-tone output includes title summary');
+like($out_skip_tone, qr/^Volume: 5$/m, '--skip-tone output includes volume summary');
 
 copy_single_audio_fixture('m4b', 'Narrator Option.m4b');
 my ($exit_narrator_option, $out_narrator_option, $err_narrator_option) = run_cmd(

@@ -22,6 +22,7 @@ my $show_version = 0;
 my $checkpoint = 0;
 my $has_subtitle = 0;
 my $dry_run = 0;
+my $skip_tone = 0;
 my $series_override;
 my $append_title;
 my $narrator_override;
@@ -34,6 +35,7 @@ GetOptions(
     'checkpoint' => \$checkpoint,
     'has-subtitle' => \$has_subtitle,
     'dry-run' => \$dry_run,
+    'skip-tone' => \$skip_tone,
     'series=s' => \$series_override,
     'append-title=s' => \$append_title,
     'apend-title=s'  => \$append_title,
@@ -116,6 +118,7 @@ my $ok = eval {
             subtitle    => $inferred_meta->{subtitle},
             audio_files => \@audio_files,
             dry_run     => $dry_run,
+            skip_tone   => $skip_tone,
         );
         maybe_set_multi_audio_album(
             source_root => $book_file,
@@ -123,6 +126,7 @@ my $ok = eval {
             album       => $resolved_title,
             audio_files => \@audio_files,
             dry_run     => $dry_run,
+            skip_tone   => $skip_tone,
         );
         maybe_create_cover_image($dest_dir, $dry_run);
 
@@ -164,7 +168,7 @@ my $ok = eval {
           or die "Error: failed to move '$book_file' to '$dest_file': $!\n";
     }
 
-    if ($audio_count == 1 && !$dry_run) {
+    if ($audio_count == 1 && !$dry_run && !$skip_tone) {
         tone_set_audio_metadata(
             path        => $dest_file,
             album       => $resolved_title,
@@ -436,18 +440,20 @@ sub maybe_rename_single_audio {
           or die "Error: failed to rename '$dest_audio' to '$renamed_audio': $!\n";
     }
 
-    tone_set_audio_metadata(
-        path        => $renamed_audio,
-        album       => $title,
-        title       => $title,
-        part_number => $args{part_number},
-        author      => $args{author},
-        series      => $args{series},
-        year        => $args{year},
-        asin        => $args{asin},
-        subtitle    => $args{subtitle},
-        narrators   => $args{narrators},
-    );
+    if (!$args{skip_tone}) {
+        tone_set_audio_metadata(
+            path        => $renamed_audio,
+            album       => $title,
+            title       => $title,
+            part_number => $args{part_number},
+            author      => $args{author},
+            series      => $args{series},
+            year        => $args{year},
+            asin        => $args{asin},
+            subtitle    => $args{subtitle},
+            narrators   => $args{narrators},
+        );
+    }
 }
 
 sub maybe_set_multi_audio_album {
@@ -458,6 +464,7 @@ sub maybe_set_multi_audio_album {
     return if !defined $album || $album eq '';
     return if @$audio_files <= 1;
     return if $args{dry_run};
+    return if $args{skip_tone};
 
     my $source_root = File::Spec->rel2abs($args{source_root});
     my $dest_root = File::Spec->rel2abs($args{dest_root});
@@ -877,7 +884,7 @@ sub usage {
     my ($exit_code) = @_;
 
     print <<'USAGE';
-Usage: 2bookdir.pl [--help] [--version] [--json] [--dry-run] [--as-is] [--reverse] [--has-subtitle] [--series SERIES] [--append-title TEXT] [--narrator NAME] book_file [part-number] [book title]
+Usage: 2bookdir.pl [--help] [--version] [--json] [--dry-run] [--skip-tone] [--as-is] [--reverse] [--has-subtitle] [--series SERIES] [--append-title TEXT] [--narrator NAME] book_file [part-number] [book title]
 
 Arguments:
   book_file     Required. Path to the source book file or directory.
@@ -887,6 +894,8 @@ Arguments:
                 as subtitle metadata and remove it from title parsing.
   --dry-run     Optional. Simulate operations and print normal text/JSON
                 output without modifying files or metadata.
+  --skip-tone   Optional. Perform filesystem operations but skip all tone
+                metadata updates.
   --series      Optional. Explicit series name. If the series value ends with
                 a number, that number is used as inferred volume.
   --append-title Optional. Appends TEXT to the resolved title separated by a
