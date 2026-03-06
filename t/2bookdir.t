@@ -759,6 +759,22 @@ is($err_has_subtitle, '', '--has-subtitle case does not write stderr');
 like($out_has_subtitle, qr/^Title: Wizards First Rule$/m, '--has-subtitle output includes stripped title summary');
 like($out_has_subtitle, qr/^Subtitle: A Really Good Subtitle$/m, '--has-subtitle output includes subtitle summary');
 
+mkdir q{Vol. 4 - Mine Level 42: I the Hidden Dog but I'm Not the Cat Lord Act 4}
+  or die q{failed to create fixture dir 'Vol. 4 - Mine Level 42: I the Hidden Dog but I'm Not the Cat Lord Act 4': } . $!;
+my ($exit_vol_colon_complex, $out_vol_colon_complex, $err_vol_colon_complex) = run_cmd(
+    'perl',
+    $script,
+    q{Vol. 4 - Mine Level 42: I the Hidden Dog but I'm Not the Cat Lord Act 4}
+);
+is($exit_vol_colon_complex, 0, 'complex vol-prefixed colon title directory succeeds');
+ok(-d 'Vol. 4 - Mine Level 42', 'complex vol-prefixed colon title directory is normalized to parsed title');
+ok(!-d q{Vol. 4 - Mine Level 42: I the Hidden Dog but I'm Not the Cat Lord Act 4}, 'complex vol-prefixed colon source directory no longer exists after rename');
+is($err_vol_colon_complex, '', 'complex vol-prefixed colon title directory does not write stderr');
+like($out_vol_colon_complex, qr/^Moved: Vol\. 4 - Mine Level 42: I the Hidden Dog but I'm Not the Cat Lord Act 4 -> Vol\. 4 - Mine Level 42$/m, 'complex vol-prefixed colon output includes expected move line');
+like($out_vol_colon_complex, qr/^Title: Mine Level 42$/m, 'complex vol-prefixed colon output includes parsed title');
+like($out_vol_colon_complex, qr/^Subtitle: I the Hidden Dog but I'm Not the Cat Lord Act 4$/m, 'complex vol-prefixed colon output includes parsed subtitle');
+like($out_vol_colon_complex, qr/^Volume: 4$/m, 'complex vol-prefixed colon output includes parsed volume');
+
 mkdir '1994 - Book 1 - Wizards First Rule' or die "failed to create fixture dir '1994 - Book 1 - Wizards First Rule': $!";
 my ($exit_year_volume_token, $out_year_volume_token, $err_year_volume_token) = run_cmd('perl', $script, '1994 - Book 1 - Wizards First Rule');
 is($exit_year_volume_token, 0, 'year + volume-token dashed directory infers title/volume/year');
@@ -889,6 +905,22 @@ is($err_author_colon_subtitle, '', 'author/title colon subtitle case does not wr
 like($out_author_colon_subtitle, qr/^Title: Super Tumor 4$/m, 'author/title colon subtitle output includes parsed title');
 like($out_author_colon_subtitle, qr/^Subtitle: The Search for the Bump$/m, 'author/title colon subtitle output includes parsed subtitle');
 like($out_author_colon_subtitle, qr/^Author: R\.A\. Babish$/m, 'author/title colon subtitle output includes parsed author');
+
+copy_single_audio_fixture('m4b', q{Hero's, Vol. 4: Light Novel.m4b});
+my ($exit_comma_vol_colon, $out_comma_vol_colon, $err_comma_vol_colon) = run_cmd(
+    'perl',
+    $script,
+    q{Hero's, Vol. 4: Light Novel.m4b}
+);
+is($exit_comma_vol_colon, 0, 'comma + volume keyword before colon keeps left side as title');
+ok(-d q{Vol. 4 - Hero's, Vol. 4}, 'comma + volume keyword before colon creates expected directory');
+ok(-f File::Spec->catfile(q{Vol. 4 - Hero's, Vol. 4}, q{Hero's, Vol. 4.m4b}), 'comma + volume keyword before colon renames file using full left side title');
+is(tone_meta(File::Spec->catfile(q{Vol. 4 - Hero's, Vol. 4}, q{Hero's, Vol. 4.m4b}), '$.meta.movementName'), q{Hero's}, 'comma + volume keyword before colon sets series from text before comma');
+is($err_comma_vol_colon, '', 'comma + volume keyword before colon does not write stderr');
+like($out_comma_vol_colon, qr/^Title: Hero's, Vol\. 4$/m, 'comma + volume keyword before colon output keeps title unchanged');
+like($out_comma_vol_colon, qr/^Subtitle: Light Novel$/m, 'comma + volume keyword before colon output keeps subtitle from right side');
+like($out_comma_vol_colon, qr/^Volume: 4$/m, 'comma + volume keyword before colon output includes parsed volume');
+like($out_comma_vol_colon, qr/^Series: Hero's$/m, 'comma + volume keyword before colon output includes parsed series');
 
 copy_single_audio_fixture('m4b', 'Rocket Dogs- Into Orbit.m4b');
 my ($exit_hyphen_subtitle, $out_hyphen_subtitle, $err_hyphen_subtitle) = run_cmd(
